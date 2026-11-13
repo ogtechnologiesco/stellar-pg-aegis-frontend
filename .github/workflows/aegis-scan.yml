@@ -12,7 +12,7 @@ name: Aegis vulnerability scan
 #
 #   jobs:
 #     scan:
-#       uses: ogtechnologiesteam/stellar-pg-aegis-frontend/.github/workflows/aegis-scan.yml@<ref>
+#       uses: ogtechnologiesco/stellar-pg-aegis-frontend/.github/workflows/aegis-scan.yml@<ref>
 #       permissions:
 #         contents: read
 #         actions: read

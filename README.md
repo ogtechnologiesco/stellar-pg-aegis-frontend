@@ -115,7 +115,7 @@ permissions: {}
 
 jobs:
   scan:
-    uses: ogtechnologiesteam/stellar-pg-aegis-frontend/.github/workflows/aegis-scan.yml@main
+    uses: ogtechnologiesco/stellar-pg-aegis-frontend/.github/workflows/aegis-scan.yml@main
     permissions:
       contents: read
       actions: read
