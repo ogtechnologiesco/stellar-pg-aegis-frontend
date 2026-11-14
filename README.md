@@ -124,6 +124,10 @@ jobs:
 
 Inputs: `fail-on-vuln` (default `true`), `govulncheck` (default `true`),
 `semgrep` (default `true`), `semgrep-config` (default `p/security-audit`),
+`rust-reach` (default `false` — EXPERIMENTAL reachsec MIR call-graph analysis;
+compiles the workspace under pinned nightly, runs `build.rs`, minutes on large
+trees; `not_reachable` is best-effort, advisories without function metadata get
+no verdict — see AGENTS.md),
 `sarif-upload` (default `true`), `scan-args` (forwarded to osv-scanner).
 Ignore advisories with an `osv-scanner.toml` `[[IgnoredVulns]]` block at the repo root —
 see this repo's `osv-scanner.toml` for an example.

@@ -32,7 +32,12 @@ Verification before finishing a change: `npm run lint && npm run build`.
 - `scripts/build-snapshot.ts` — snapshot builder; run `npm run data:refresh`.
   Sources: PG Atlas API (`PG_ATLAS_API`, default `https://api.pgatlas.xyz`), OSV `/v1/querybatch`
   + `/v1/vulns`, CISA KEV, FIRST EPSS, GitHub GraphQL/REST (`GITHUB_TOKEN`), OpenSSF Scorecard,
-  security.txt. Respects PG Atlas 100 req/min limit, honors `Retry-After`, and disk-caches
+  security.txt, and DNS/TLS (`DOH_API`, default `https://dns.google/resolve`) —
+  the DoH pass sets `dnssec_status` (valid / unsigned / broken via the AD bit plus a
+  SERVFAIL→cd retry) and `has_caa` (label-climbing CAA lookup) on each non-GitHub
+  project website, plus `tls` (validity, error, cert expiry) from a `:443` handshake
+  at the DoH-resolved IP via `scripts/tls.ts` — connecting by IP keeps results honest
+  on networks that intercept DNS. Respects PG Atlas 100 req/min limit, honors `Retry-After`, and disk-caches
   in `scripts/.cache/` (PG responses 24h, GitHub/Scorecard 72h) so refreshes resume.
   `GH_MAX_REPOS=<n>` caps GitHub enrichment per run (repos with findings first, then by stars);
   unenriched repos show as "unknown" in the UI.
@@ -78,10 +83,24 @@ Verification before finishing a change: `npm run lint && npm run build`.
 - `.github/workflows/aegis-scan.yml` — `workflow_call` reusable scan for any repo: wraps
   `google/osv-scanner-action` (PR-diff variant on PRs, full scan otherwise) + govulncheck per
   `go.mod` + Semgrep SAST (`semgrep-config` input, default `p/security-audit`), merged SARIF
-  uploads to code scanning.
+  uploads to code scanning. `rust-reach` input (default `false`) adds EXPERIMENTAL
+  Rust reachability via `reachsec` (github.com/xizheyin/reachsec @548b228b, pinned) +
+  `callgraph4rs` on nightly-2025-08-09: builds a MIR call graph of the workspace and
+  reports real call chains into advisory-affected functions. Statuses: `reachable`
+  (call chain found → also exit 1), `not_reachable` (no chain found — tool itself
+  labels this "potentially vulnerable", NOT proof of safety; it over-approximates),
+  `analysis_failed`, `no_metadata` (advisory lacks `affects.functions` — most
+  RustSec advisories). Runs `cargo build` → dependency build.rs executes — keep
+  opt-in for untrusted sources. Verified on stellar-registry/cli (31 advisories,
+  0 errors, minutes not hours; project `rust-toolchain.toml` pin is overridden by
+  `+nightly`). Replaces an earlier osv-scanner `--call-analysis=rust` attempt whose
+  DWARF/LTO approach was ELF-only and produced systematic false negatives.
 - `.github/workflows/vuln-scan.yml` — dogfoods `aegis-scan.yml` on this repo (PRs + weekly).
   Advisory ignores live in `osv-scanner.toml` at repo root.
 - React Query hooks (`useProjects`, `useVulnExposure`, ...) live in `src/api/index.ts`.
+- `src/lib/doh.ts` — shared DoH client (`dnssecStatus`, `caaRecords`) used by both the
+  snapshot builder and the `/dns` page (dns.google sends CORS headers, so the page runs
+  the same checks live in the browser; override via `VITE_DOH_API`).
 - Priority weights (spec FR5) live in `src/lib/priority.ts`; severity falls back to the
   advisory label when no CVSS v3 score is computable (`unknown` severity is possible).
 

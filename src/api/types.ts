@@ -21,6 +21,18 @@ export type EdgeSource = 'verified-sbom' | 'inferred-shadow' | 'govulncheck'
 export type AdvisoryKind = 'vulnerability' | 'unmaintained' | 'unsound' | 'notice' | 'yanked' | 'malware'
 export type ChannelKind = 'pvr' | 'email' | 'url' | 'bounty' | 'security_txt' | 'policy' | 'other'
 export type ExtractedBy = 'rule' | 'llm' | 'manual'
+/** DNSSEC state of a domain as seen by a validating resolver (via DoH). */
+export type DnssecStatus = 'valid' | 'unsigned' | 'broken'
+/** TLS certificate check on a website's :443 endpoint. */
+export type TlsStatus = 'valid' | 'invalid' | 'unreachable'
+
+export interface TlsCheck {
+  status: TlsStatus
+  /** Handshake/auth failure reason (e.g. UNABLE_TO_VERIFY_LEAF_SIGNATURE, CERT_HAS_EXPIRED); null when valid. */
+  error: string | null
+  /** Peer certificate notAfter (ISO-ish date string); null when no cert was presented. */
+  cert_expires_at: string | null
+}
 
 export type SeverityCounts = Record<Severity, number>
 
@@ -52,6 +64,12 @@ export interface Hygiene {
   /** Approved audit reports on the Stellar Security Portal. null = portal not checked. */
   audit_reports_count: number | null
   last_audit_at: string | null
+  /** DNSSEC state of the project website's domain (dns.google DoH). null/absent = not checked. */
+  dnssec_status?: DnssecStatus | null
+  /** CAA record present on the website's domain or a parent. null/absent = not checked. */
+  has_caa?: boolean | null
+  /** TLS certificate validity of the project website endpoint. null/absent = not checked. */
+  tls?: TlsCheck | null
 }
 
 export interface ProjectSummary {

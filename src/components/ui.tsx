@@ -153,11 +153,12 @@ export function SeverityStack({ counts, className }: { counts: SeverityCounts; c
   )
 }
 
-export function CheckItem({ ok, label }: { ok: boolean | null; label: string }) {
+export function CheckItem({ ok, warn, label, title }: { ok: boolean | null; warn?: boolean; label: string; title?: string }) {
+  const alert = ok === false && warn
   return (
-    <div className={clsx('flex items-center gap-2 text-sm', ok ? 'text-slate-200' : 'text-slate-500')}>
-      <span className={clsx('grid size-5 place-items-center rounded-full', ok ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/[0.04] text-slate-600')} title={ok == null ? 'Not collected yet' : undefined}>
-        {ok ? <Check className="size-3" strokeWidth={3} /> : <span className="h-px w-2 bg-current" />}
+    <div className={clsx('flex items-center gap-2 text-sm', alert ? 'text-amber-300' : ok ? 'text-slate-200' : 'text-slate-500')} title={title}>
+      <span className={clsx('grid size-5 place-items-center rounded-full', alert ? 'bg-amber-500/15 text-amber-300' : ok ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/[0.04] text-slate-600')} title={ok == null ? 'Not collected yet' : undefined}>
+        {alert ? <AlertTriangle className="size-3" strokeWidth={2.5} /> : ok ? <Check className="size-3" strokeWidth={3} /> : <span className="h-px w-2 bg-current" />}
       </span>
       <span className={ok == null ? 'italic' : ''}>{label}{ok == null && <span className="ml-1.5 text-[11px] not-italic text-slate-600">unknown</span>}</span>
     </div>

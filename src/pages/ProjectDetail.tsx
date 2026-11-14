@@ -6,7 +6,7 @@ import { DisclosureChannels } from '../components/DisclosureCard'
 import { FindingsTable } from '../components/FindingsTable'
 import { SastFindings } from '../components/SastFindings'
 import { Card, CardHeader, CheckItem, EmptyState, ErrorState, PageHeader, Pill, ScoreBar, SeverityBadge, SeverityStack, Skeleton, StatusPill } from '../components/ui'
-import { relativeTime, totalFindings } from '../lib/format'
+import { relativeTime, shortDate, totalFindings } from '../lib/format'
 
 export default function ProjectDetail() {
   const { id = '' } = useParams()
@@ -213,6 +213,18 @@ export default function ProjectDetail() {
               <CheckItem ok={h.has_security_policy} label="SECURITY.md published" />
               <CheckItem ok={h.pvr_enabled} label="Private vulnerability reporting" />
               <CheckItem ok={h.has_security_txt} label="security.txt on website" />
+              <CheckItem
+                ok={h.dnssec_status == null ? null : h.dnssec_status === 'valid'}
+                warn={h.dnssec_status === 'broken'}
+                label={h.dnssec_status === 'broken' ? 'DNSSEC validation failing on website' : 'DNSSEC on website domain'}
+              />
+              <CheckItem ok={h.has_caa ?? null} label="CAA record set" />
+              <CheckItem
+                ok={h.tls == null ? null : h.tls.status === 'valid'}
+                warn={h.tls?.status === 'invalid'}
+                label={h.tls?.status === 'invalid' ? 'HTTPS certificate invalid' : 'HTTPS certificate valid'}
+                title={h.tls ? [h.tls.error, h.tls.cert_expires_at && `expires ${shortDate(h.tls.cert_expires_at)}`].filter(Boolean).join(' · ') || undefined : undefined}
+              />
               <CheckItem ok={h.dependency_update_tool} label="Dependabot / Renovate configured" />
               <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.05] pt-4 text-xs">
                 <div>

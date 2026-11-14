@@ -156,6 +156,8 @@ TypeScript SDK `pg-atlas-ts-sdk`).
 | SECURITY.md | GitHub contents API; check `/SECURITY.md`, `/.github/SECURITY.md`, `/docs/SECURITY.md`, and the org-level `.github` repo fallback | Presence, contacts (emails, URLs), supported versions, SLA statements |
 | Private Vulnerability Reporting | `GET /repos/{o}/{r}/private-vulnerability-reporting` | PVR enabled flag (preferred channel when true) |
 | `security.txt` (RFC 9116) | `https://<project website>/.well-known/security.txt` | Contact for project websites/services |
+| DNS-over-HTTPS | `dns.google/resolve` JSON API (validating resolver) | DNSSEC status + CAA on project website domains |
+| TLS probe | `:443` handshake on the DoH-resolved address of each project website | Certificate validity, auth failure reason, expiry |
 | Bug bounty programs | Curated list (HackerOne, Immunefi, SDF program scope) | Bounty coverage |
 | OpenSSF Scorecard | `api.securityscorecards.dev/projects/github.com/{o}/{r}` | `Security-Policy`, `Vulnerabilities`, `Dependency-Update-Tool`, `Branch-Protection`, `Signed-Releases`, etc. |
 | Stellar Security Portal | Link-out by protocol name | Audit reports/findings for the project, if any |
@@ -221,7 +223,7 @@ Default weights published in config; per-finding breakdown returned by the API.
 
 ### FR7 Hygiene profile (per repo and aggregated per project)
 Boolean/numeric signals, *profiles not a score*:
-- has_security_policy, pvr_enabled, has_security_txt, bounty_covered
+- has_security_policy, pvr_enabled, has_security_txt, dnssec_status, has_caa, tls_status (with error + cert expiry), bounty_covered
 - published_advisories_count, last_advisory_at
 - open_findings_by_severity, oldest_unpatched_fixable_age_days
 - dependency_update_tool (Scorecard), scorecard_overall, selected Scorecard checks

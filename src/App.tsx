@@ -9,6 +9,7 @@ const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
 const Advisories = lazy(() => import('./pages/Advisories'))
 const AdvisoryDetail = lazy(() => import('./pages/AdvisoryDetail'))
 const Disclose = lazy(() => import('./pages/Disclose'))
+const DnsCheck = lazy(() => import('./pages/DnsCheck'))
 const Methodology = lazy(() => import('./pages/Methodology'))
 const Glossary = lazy(() => import('./pages/Glossary'))
 const GlossaryDetail = lazy(() => import('./pages/GlossaryDetail'))
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
       { path: 'advisories', element: page(<Advisories />) },
       { path: 'advisories/:id', element: page(<AdvisoryDetail />) },
       { path: 'disclose', element: page(<Disclose />) },
+      { path: 'dns', element: page(<DnsCheck />) },
       { path: 'methodology', element: page(<Methodology />) },
       { path: 'glossary', element: page(<Glossary />) },
       { path: 'glossary/:slug', element: page(<GlossaryDetail />) },

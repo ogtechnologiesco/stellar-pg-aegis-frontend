@@ -16,6 +16,8 @@ const SOURCES = [
   ['OSV.dev', 'Vulnerability matching by PURL + version. Aggregates GHSA, PyPI, npm, Go, RustSec, Packagist, Pub, Maven, NuGet, RubyGems and more.'],
   ['GitHub', 'SECURITY.md, private vulnerability reporting status, repository-published advisories, Dependabot / Renovate config.'],
   ['security.txt', 'RFC 9116 file fetched at /.well-known/security.txt on each project website (non-GitHub). Presence is verified by a Contact: field; adds a ranked disclosure channel and a hygiene check.'],
+  ['DNS (dns.google DoH)', 'A-record lookup per project website determines DNSSEC status (valid / unsigned / broken) via the AD bit plus a validation-bypass retry; a CAA lookup climbs to the registrable domain. The /dns page runs the same checks live in the browser.'],
+  ['TLS probe', 'Each project website gets a :443 handshake at its DoH-resolved address — connecting by IP bypasses DNS filters and sinkholes. Records cert validity, the auth failure reason and expiry.'],
   ['OpenSSF Scorecard', 'Overall repo score where Scorecard has scanned the repository.'],
   ['CISA KEV · FIRST EPSS', 'Exploitation signals used for prioritization.'],
   ['govulncheck', 'Go call analysis — clones repos with Go findings at HEAD and checks whether their code calls the symbols each advisory names (reachability: called / not-called / unflagged). Also emits advisories it reports that edge matching missed.'],

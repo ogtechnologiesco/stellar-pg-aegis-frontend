@@ -1,13 +1,14 @@
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { BookA, BookOpen, Boxes, Ellipsis, LayoutDashboard, Menu, Moon, Search, ShieldAlert, Siren, Sun, X } from 'lucide-react'
+import { BookA, BookOpen, Boxes, Ellipsis, LayoutDashboard, Menu, Moon, Radar, Search, ShieldAlert, Siren, Sun, X } from 'lucide-react'
 import { api, useSummary } from '../api'
 
 const NAV = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/projects', label: 'Projects', icon: Boxes },
   { to: '/advisories', label: 'Advisories', icon: ShieldAlert },
+  { to: '/dns', label: 'Domain check', icon: Radar },
   { to: '/disclose', label: 'Report a vulnerability', icon: Siren },
   { to: '/methodology', label: 'Methodology', icon: BookOpen },
   { to: '/glossary', label: 'Glossary', icon: BookA },

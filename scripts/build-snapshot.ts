@@ -9,6 +9,8 @@
  *   GitHub        → SECURITY.md, private vulnerability reporting, published advisories,
  *                   Dependabot / Renovate config (requires GITHUB_TOKEN; skipped otherwise)
  *   Scorecard     → OpenSSF Scorecard overall score
+ *   DNS/TLS       → DNSSEC status + CAA (dns.google DoH) and TLS certificate
+ *                   validity on non-GitHub project websites
  *   govulncheck   → Go call analysis: shallow-clones repos with Go findings and checks
  *                   whether their code calls the vulnerable symbols (reachability)
  *
@@ -24,6 +26,8 @@ import type {
   AuditReport,
   Confidence,
   DisclosureChannel,
+  DnssecStatus,
+  TlsCheck,
   EcosystemSummary,
   EdgeSource,
   Exposure,
@@ -41,6 +45,8 @@ import type {
   Vuln,
 } from '../src/api/types.ts'
 import { computePriority, logNorm } from '../src/lib/priority.ts'
+import { caaRecords, dnssecStatus } from '../src/lib/doh.ts'
+import { tlsCheck } from './tls.ts'
 import { affectedFor, fetchOsv, kindOf, LABEL, severityOf, UPGRADE_HINT, type OsvVuln } from './osv.ts'
 import { CACHE_DIR, cacheGet, cachePath, cacheSet, log } from './cache.ts'
 import { CLONES_DIR, ghKey, ghRepoOf, govcBinary, govcRepo, GOVC_MAX, GOVC_REPOS, type ReachVerdicts } from './govulncheck.ts'
@@ -874,19 +880,34 @@ async function main() {
   })
   log(`Scorecard: ${scorecard.size}/${ghRepos.length} repos scored`)
 
-  // ---- security.txt for non-GitHub project websites
+  // ---- security.txt + DNS/TLS hygiene for non-GitHub project websites
   const securityTxt = new Map<number, string>()
+  const dnssec = new Map<number, DnssecStatus>()
+  const caa = new Map<number, boolean>()
+  const tls = new Map<number, TlsCheck>()
+  const DOH_API = process.env.DOH_API ?? undefined
   await pool(details, 8, async (d, i) => {
     const w = d?.metadata?.website
     if (!w || /github\.com/i.test(w)) return
+    let url: URL
     try {
-      const origin = new URL(w).origin
-      const res = await fetch(`${origin}/.well-known/security.txt`, { signal: AbortSignal.timeout(10_000), redirect: 'follow' })
+      url = new URL(w)
+    } catch {
+      return /* unparsable website URL: leave unknown */
+    }
+    try {
+      const res = await fetch(`${url.origin}/.well-known/security.txt`, { signal: AbortSignal.timeout(10_000), redirect: 'follow' })
       const t = res.ok ? await res.text() : ''
-      if (/^\s*Contact:/im.test(t) && !/<html/i.test(t)) securityTxt.set(i, `${origin}/.well-known/security.txt`)
+      if (/^\s*Contact:/im.test(t) && !/<html/i.test(t)) securityTxt.set(i, `${url.origin}/.well-known/security.txt`)
     } catch {
       /* unreachable website: leave unknown */
     }
+    // DNS checks are independent of HTTP reachability — a broken DNSSEC chain can
+    // itself make the website unreachable, so they run even when the fetch failed.
+    const [dres, cres, tres] = await Promise.all([dnssecStatus(url.hostname, DOH_API), caaRecords(url.hostname, DOH_API), tlsCheck(url.hostname, DOH_API)])
+    if (dres.status) dnssec.set(i, dres.status)
+    if (cres.found != null) caa.set(i, cres.found)
+    tls.set(i, tres)
   })
 
   // ---- Stellar Security Portal audit reports
@@ -1032,6 +1053,9 @@ async function main() {
       has_security_policy: anyTrue(repos.map((r) => r.has_security_policy)),
       pvr_enabled: anyTrue(repos.map((r) => r.pvr_enabled)),
       has_security_txt: website && !/github\.com/i.test(website) ? securityTxt.has(i) : null,
+      dnssec_status: website && !/github\.com/i.test(website) ? (dnssec.get(i) ?? null) : null,
+      has_caa: website && !/github\.com/i.test(website) ? (caa.get(i) ?? null) : null,
+      tls: website && !/github\.com/i.test(website) ? (tls.get(i) ?? null) : null,
       dependency_update_tool: anyTrue(depsTool),
       published_advisories_count: GH_TOKEN ? pAdvisories.length : null,
       last_advisory_at: pAdvisories[0]?.published_at ?? null,
@@ -1166,7 +1190,7 @@ async function main() {
     by_ecosystem: [...ecoMap.entries()].map(([ecosystem, v]) => ({ ecosystem, findings: v.findings, repos: v.repos.size })).sort((a, b) => b.findings - a.findings),
     pg_atlas: metadata,
     generated_at: NOW,
-    sources: ['PG Atlas', 'OSV.dev', 'CISA KEV', 'FIRST EPSS', 'OpenSSF Scorecard', ...(GH_TOKEN ? ['GitHub'] : []), ...(govcResults.size ? ['govulncheck'] : []), ...(sastScanned ? ['Semgrep'] : []), ...(portalOk ? ['Stellar Security Portal'] : [])],
+    sources: ['PG Atlas', 'OSV.dev', 'CISA KEV', 'FIRST EPSS', 'OpenSSF Scorecard', 'DNS (dns.google DoH)', ...(GH_TOKEN ? ['GitHub'] : []), ...(govcResults.size ? ['govulncheck'] : []), ...(sastScanned ? ['Semgrep'] : []), ...(portalOk ? ['Stellar Security Portal'] : [])],
   }
 
   const snapshot: Snapshot = { summary, projects, vulns, exposures }
