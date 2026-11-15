@@ -44,7 +44,7 @@ export default function Overview() {
       <PageHeader
         eyebrow="Ecosystem overview"
         title="Security posture of Stellar public goods"
-        description="Known vulnerabilities in tracked Stellar project dependencies — WG-recognized public goods included — ranked by how much of the ecosystem they affect, with how to report each to its maintainers."
+        description="Open vulnerabilities in the dependencies of every tracked Stellar project — ranked by severity, exploitability and ecosystem reach — plus each project's channel for a private report to its maintainers."
         actions={
           <>
             <Link to="/disclose" className="btn-ghost">

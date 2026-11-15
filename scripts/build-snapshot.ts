@@ -51,6 +51,7 @@ import { affectedFor, fetchOsv, kindOf, LABEL, severityOf, UPGRADE_HINT, type Os
 import { CACHE_DIR, cacheGet, cachePath, cacheSet, log } from './cache.ts'
 import { CLONES_DIR, ghKey, ghRepoOf, govcBinary, govcRepo, GOVC_MAX, GOVC_REPOS, type ReachVerdicts } from './govulncheck.ts'
 import { sastRepo, semgrepBinary, semgrepVersion, SEMGREP_CONFIG, SEMGREP_MAX, SEMGREP_REPOS } from './semgrep.ts'
+import { scoutRepo, scoutRunner, SCOUT_MAX, SCOUT_REPOS, SCOUT_VERSION } from './scout.ts'
 
 const PG = (process.env.PG_ATLAS_API ?? 'https://api.pgatlas.xyz').replace(/\/$/, '')
 const WG_SITE = 'https://scf-public-goods-maintenance.github.io'
@@ -814,6 +815,62 @@ async function main() {
     }
   }
 
+  // ---- Scout (CoinFabrik) Soroban contract lint for WG-listed repos
+  // Same WG target selection + clone pool as Semgrep; a repo is analyzed only when
+  // a soroban-sdk manifest is found. Scout COMPILES the repo under its pinned
+  // detector nightly — docker container on x86_64 (no env passthrough), sanitized
+  // local env elsewhere. Findings merge into sast_findings tagged tool:'scout'.
+  let scoutRunnerKind: 'docker' | 'local' | null = null
+  let scoutTargeted = 0
+  let scoutScanned = 0
+  let scoutContracts = 0
+  const scoutSev = { error: 0, warning: 0, info: 0 }
+  if (process.env.SCOUT === '0') {
+    log('scout: disabled via SCOUT=0')
+  } else {
+    const seenGh = new Set<string>()
+    const scoutTargets = allRepos
+      .filter((r) => wgSet.has(pgProjects[repoOwner.get(r.canonical_id)!].canonical_id))
+      .map((r) => ({ r, gh: ghRepoOf(r.repo_url) }))
+      .filter((x): x is { r: PgRepo; gh: { owner: string; name: string } } => !!x.gh && (!SCOUT_REPOS || SCOUT_REPOS.includes(ghKey(x.gh))))
+      .filter((x) => {
+        const k = ghKey(x.gh)
+        if (seenGh.has(k)) return false
+        seenGh.add(k)
+        return true
+      })
+      .sort((a, b) => (b.r.criticality_score ?? 0) - (a.r.criticality_score ?? 0))
+      .slice(0, SCOUT_MAX)
+    scoutTargeted = scoutTargets.length
+    const run = scoutTargets.length ? await scoutRunner() : null
+    if (scoutTargets.length && !run) {
+      log('scout: no runner available (docker or cargo-scout-audit) — scout fields will be "not collected"')
+    } else if (run) {
+      scoutRunnerKind = run.kind
+      log(`scout ${SCOUT_VERSION} via ${run.kind}: checking ${scoutTargets.length} WG-listed repos for Soroban contracts${Number.isFinite(SCOUT_MAX) ? ' (capped)' : ''} — cached per commit`)
+      await mkdir(CLONES_DIR, { recursive: true })
+      await pool(scoutTargets, 2, async ({ r, gh }) => {
+        const proj = pgProjects[repoOwner.get(r.canonical_id)!]
+        const res = await scoutRepo(run, gh, r.repo_url!, {
+          repo_id: r.canonical_id,
+          repo_name: r.display_name,
+          project_id: proj.canonical_id,
+          project_name: proj.display_name,
+        })
+        if (!res || !res.contract) return
+        scoutScanned++
+        scoutContracts++
+        for (const f of res.findings) {
+          scoutSev[f.severity]++
+          const list = sastByProject.get(proj.canonical_id) ?? []
+          list.push(f)
+          sastByProject.set(proj.canonical_id, list)
+        }
+      })
+      log(`scout: ${scoutContracts}/${scoutTargets.length} repos contained contracts (${scoutScanned} analyzed) · ${scoutSev.error} errors / ${scoutSev.warning} warnings / ${scoutSev.info} info`)
+    }
+  }
+
   // ---- GitHub enrichment
   // Coverage is incremental: repos with findings first, then by stars. Results are cached
   // per repo, so a capped or interrupted run still keeps its progress and the next
@@ -1178,6 +1235,9 @@ async function main() {
     sast: sastTargeted
       ? { ruleset: SEMGREP_CONFIG, tool_version: sastToolVersion, repos_targeted: sastTargeted, repos_scanned: sastScanned, findings: { ...sastSev } }
       : null,
+    scout: scoutTargeted
+      ? { tool_version: SCOUT_VERSION, runner: scoutRunnerKind, repos_targeted: scoutTargeted, repos_scanned: scoutScanned, contracts_found: scoutContracts, findings: { ...scoutSev } }
+      : null,
     median_fixable_advisory_age_days: median(fixableAges) !== null ? Math.round(median(fixableAges)!) : null,
     audit_coverage: portalOk
       ? (() => {
@@ -1190,7 +1250,7 @@ async function main() {
     by_ecosystem: [...ecoMap.entries()].map(([ecosystem, v]) => ({ ecosystem, findings: v.findings, repos: v.repos.size })).sort((a, b) => b.findings - a.findings),
     pg_atlas: metadata,
     generated_at: NOW,
-    sources: ['PG Atlas', 'OSV.dev', 'CISA KEV', 'FIRST EPSS', 'OpenSSF Scorecard', 'DNS (dns.google DoH)', ...(GH_TOKEN ? ['GitHub'] : []), ...(govcResults.size ? ['govulncheck'] : []), ...(sastScanned ? ['Semgrep'] : []), ...(portalOk ? ['Stellar Security Portal'] : [])],
+    sources: ['PG Atlas', 'OSV.dev', 'CISA KEV', 'FIRST EPSS', 'OpenSSF Scorecard', 'DNS (dns.google DoH)', ...(GH_TOKEN ? ['GitHub'] : []), ...(govcResults.size ? ['govulncheck'] : []), ...(sastScanned ? ['Semgrep'] : []), ...(scoutScanned ? ['Scout'] : []), ...(portalOk ? ['Stellar Security Portal'] : [])],
   }
 
   const snapshot: Snapshot = { summary, projects, vulns, exposures }

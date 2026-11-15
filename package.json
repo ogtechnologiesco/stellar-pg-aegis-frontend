@@ -11,6 +11,7 @@
     "data:refresh": "node scripts/build-snapshot.ts",
     "data:reachability": "node scripts/annotate-reachability.ts",
     "data:sast": "node scripts/annotate-sast.ts",
+    "data:scout": "node scripts/annotate-scout.ts",
     "data:review": "node scripts/apply-review.ts",
     "data:diff": "node scripts/diff-snapshot.ts"
   },

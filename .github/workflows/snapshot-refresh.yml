@@ -73,6 +73,9 @@ jobs:
           # Caps Semgrep SAST scans per run (WG-listed repos, highest criticality
           # first); per-commit-SHA cache grows coverage incrementally.
           SEMGREP_MAX_REPOS: '40'
+          # Caps Scout Soroban contract scans per run; only repos with a
+          # soroban-sdk manifest actually compile, most are cached skips.
+          SCOUT_MAX_REPOS: '40'
         run: npm run data:refresh && npm run data:review
 
       - name: Diff findings

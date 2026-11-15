@@ -61,7 +61,7 @@ if (reachFlips.length) {
 if (addedAdvisories) out.push(`_${addedAdvisories} tracked advisories no longer affect any public good._`, '')
 const sastNewErrors = sastAdded.filter((f) => f.severity === 'error')
 if (sastAdded.length || sastRemoved.length) {
-  out.push(`### SAST (Semgrep)`, '', `**${sastAdded.length} new** static-analysis findings · ${sastRemoved.length} resolved · ${sastNewErrors.length} error-severity`, '')
+  out.push(`### SAST (Semgrep · Scout)`, '', `**${sastAdded.length} new** static-analysis findings · ${sastRemoved.length} resolved · ${sastNewErrors.length} error-severity`, '')
   if (sastNewErrors.length) {
     out.push('| Project | Rule | Location |', '| --- | --- | --- |')
     for (const f of sastNewErrors.slice(0, 20)) out.push(`| ${esc(f.project_name)} | \`${esc(f.rule_id)}\` | \`${esc(f.path)}:${f.start_line}\` |`)

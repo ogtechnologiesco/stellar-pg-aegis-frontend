@@ -59,10 +59,37 @@ Verification before finishing a change: `npm run lint && npm run build`.
   `SEMGREP=0` disables; `SEMGREP_MAX_REPOS=<n>` caps cloned repos;
   `SEMGREP_REPOS=owner/name,...` restricts; `SEMGREP_CONFIG` overrides the ruleset.
   `p/*` registry rules drift upstream — expect occasional diffs that aren't code changes.
+  Scout (CoinFabrik `cargo-scout-audit`, Soroban contract lint): same WG target selection
+  and clone pool; a repo is analyzed only when a `Cargo.toml`/`Cargo.lock` references
+  `soroban-sdk` (non-contract repos are cheap cached skips). Findings join `sast_findings`
+  tagged `tool:'scout'` — `severity` folds Scout's Critical/Medium/Minor/Enhancement onto
+  error/warning/info with the original kept in `raw_severity`. Cached per commit SHA +
+  `SCOUT_VERSION` (default 0.3.17) for 30d; `summary.scout` mirrors `summary.sast`.
+  Runner: `coinfabrik/scout` container on x86_64 hosts, local `cargo-scout-audit`
+  elsewhere — the amd64 image's detector-helper crashes under Rosetta on arm64.
+  `SCOUT=0` disables; `SCOUT_MAX_REPOS`/`SCOUT_REPOS` mirror the Semgrep knobs;
+  `SCOUT_RUNNER` forces docker|local. TRUST: scout compiles the repo — dependency
+  `build.rs` executes — docker runs with no env passthrough; local runs use a
+  secrets-stripped child env (`shIsolated`). Scans happen on a scratch copy with
+  `rust-toolchain*` pins neutralized (a project pin breaks detector compilation —
+  scout always compiles under its own detector nightly anyway). Workaround inside:
+  scout's pinned dylint 4.1.2 clones rust-clippy and revparses the deleted `master`
+  branch — `ensureClippyMirror()` keeps a ~15MB bare mirror in `.cache/` with
+  `master` pinned to a pre-JOSH commit whose first-parent chain still contains the
+  nightly toolchain bumps; `url.insteadOf` (honored by dylint's `git clone`
+  subprocess, NOT by libgit2 remotes) redirects the fetch via `GIT_CONFIG_GLOBAL`
+  (local) or container `git config` (docker). Driver builds cache in
+  `~/.dylint_drivers` — the mirror only matters on cold builds. Known coverage
+  limit: the detector toolchain is rustc 1.92-nightly — workspaces whose deps
+  require ≥1.93 (e.g. soroban-cli 28-era tooling) fail analysis → `null`.
 - `scripts/annotate-reachability.ts` — `npm run data:reachability`: runs the same govulncheck
   pass against the existing `public/data/snapshot.json` without a full refresh.
 - `scripts/annotate-sast.ts` — `npm run data:sast`: runs the same Semgrep pass against
-  the existing `public/data/snapshot.json` without a full refresh.
+  the existing `public/data/snapshot.json` without a full refresh. Preserves `tool:'scout'`
+  findings when rewriting `sast_findings`.
+- `scripts/annotate-scout.ts` — `npm run data:scout`: runs the same Scout pass against
+  the existing `public/data/snapshot.json` without a full refresh. Preserves non-scout
+  findings when rewriting `sast_findings`.
 - `scripts/diff-snapshot.ts` — `npm run data:diff <old.json> <new.json>`: markdown report of
   new/resolved findings, KEV adds, reachability flips and SAST deltas; appends `new_findings=`,
   `sast_new=` etc. to `$GITHUB_OUTPUT`. Used by the snapshot-refresh workflow.
@@ -77,8 +104,9 @@ Verification before finishing a change: `npm run lint && npm run build`.
 
 - `.github/workflows/snapshot-refresh.yml` — nightly + dispatch: `data:refresh` + `data:review`,
   diffs against the previous snapshot into the job summary, commits `snapshot.json` back.
-  `GH_MAX_REPOS=800` bounds GitHub enrichment and `SEMGREP_MAX_REPOS=40` bounds Semgrep
-  SAST scans; set `AEGIS_GH_TOKEN` (PAT) if the default `GITHUB_TOKEN` rate-limits or
+  `GH_MAX_REPOS=800` bounds GitHub enrichment, `SEMGREP_MAX_REPOS=40` bounds Semgrep
+  SAST scans and `SCOUT_MAX_REPOS=40` bounds Scout contract scans; set
+  `AEGIS_GH_TOKEN` (PAT) if the default `GITHUB_TOKEN` rate-limits or
   branch protection blocks the push (falls back to an artifact).
 - `.github/workflows/aegis-scan.yml` — `workflow_call` reusable scan for any repo: wraps
   `google/osv-scanner-action` (PR-diff variant on PRs, full scan otherwise) + govulncheck per
@@ -95,6 +123,11 @@ Verification before finishing a change: `npm run lint && npm run build`.
   0 errors, minutes not hours; project `rust-toolchain.toml` pin is overridden by
   `+nightly`). Replaces an earlier osv-scanner `--call-analysis=rust` attempt whose
   DWARF/LTO approach was ELF-only and produced systematic false negatives.
+  `scout` input (default `false`) adds CoinFabrik Soroban contract lint via the
+  `coinfabrik/scout` container — only fires when a `soroban-sdk` manifest exists,
+  compiles under a pinned detector nightly (`build.rs` executes → keep opt-in),
+  uploads native SARIF under the `scout` category, and warns-but-exits-clean on
+  tool failure.
 - `.github/workflows/vuln-scan.yml` — dogfoods `aegis-scan.yml` on this repo (PRs + weekly).
   Advisory ignores live in `osv-scanner.toml` at repo root.
 - React Query hooks (`useProjects`, `useVulnExposure`, ...) live in `src/api/index.ts`.

@@ -6,6 +6,7 @@ import { Card, CardHeader, Pill } from './ui'
 
 const SEV_TONE: Record<SastSeverity, 'rose' | 'amber' | 'slate'> = { error: 'rose', warning: 'amber', info: 'slate' }
 const SEV_ORDER: Record<SastSeverity, number> = { error: 0, warning: 1, info: 2 }
+const TOOL_TONE: Record<string, 'indigo' | 'slate'> = { scout: 'indigo', semgrep: 'slate' }
 
 export function SastFindings({ findings, repos }: { findings: SastFinding[]; repos: Repo[] }) {
   const [open, setOpen] = useState<string | null>(null)
@@ -32,6 +33,7 @@ export function SastFindings({ findings, repos }: { findings: SastFinding[]; rep
             <div className={clsx('cursor-pointer px-5 py-3 transition hover:bg-white/[0.02]', isOpen && 'bg-white/[0.03]')} onClick={() => setOpen(isOpen ? null : f.id)}>
               <div className="flex items-start gap-3">
                 <Pill tone={SEV_TONE[f.severity]}>{f.severity}</Pill>
+                <Pill tone={TOOL_TONE[f.tool ?? 'semgrep'] ?? 'slate'}>{f.tool ?? 'semgrep'}</Pill>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-mono text-xs text-slate-300" title={f.rule_id}>
                     {f.rule_id}
@@ -59,6 +61,12 @@ export function SastFindings({ findings, repos }: { findings: SastFinding[]; rep
                   <dd className="truncate font-mono text-slate-300">{f.repo_name}</dd>
                   <dt className="text-slate-500">Scanned commit</dt>
                   <dd className="font-mono text-slate-300">{f.commit_sha.slice(0, 10)}</dd>
+                  {f.raw_severity && (
+                    <>
+                      <dt className="text-slate-500">Tool severity</dt>
+                      <dd className="text-slate-300">{f.raw_severity}</dd>
+                    </>
+                  )}
                   {f.cwe.length > 0 && (
                     <>
                       <dt className="text-slate-500">CWE</dt>
@@ -84,7 +92,7 @@ export function SastFindings({ findings, repos }: { findings: SastFinding[]; rep
     <Card className="mb-4">
       <CardHeader
         title="Static analysis"
-        subtitle={`Semgrep security-audit rules — ${counts.error} errors · ${counts.warning} warnings · ${counts.info} info · not priority-scored`}
+        subtitle={`Semgrep + Scout (Soroban contracts) — ${counts.error} errors · ${counts.warning} warnings · ${counts.info} info · not priority-scored`}
         icon={<ScanSearch className="size-4" />}
       />
       {grouped ? (

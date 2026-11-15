@@ -81,6 +81,7 @@ flowchart LR
 | Stellar Security Portal | approved audit reports per protocol (`SECURITY_PORTAL_API`) | none | 24h | live |
 | govulncheck | Go reachability (`called`/`not-called`/`unflagged`) | `go` toolchain | 30d per commit SHA | live (`GOVC=0` disables) |
 | Semgrep | SAST findings on WG-listed repos (`p/security-audit`) | `python3` + `pip` | 30d per commit SHA + version + ruleset | live (`SEMGREP=0` disables, `SEMGREP_MAX_REPOS` caps) |
+| Scout | Soroban contract lint on repos with `soroban-sdk` manifests (CoinFabrik `cargo-scout-audit`) | `docker` (x86_64) or `cargo` + `cargo-scout-audit` | 30d per commit SHA + version | live (`SCOUT=0` disables, `SCOUT_MAX_REPOS` caps, `SCOUT_RUNNER` picks docker/local) |
 | Lockfile probes | findings missed by the edge graph | none | n/a — runs on demand | live |
 | Backend `/v1/*` | replaces the static snapshot | — | — | planned (spec §8) |
 
@@ -93,6 +94,7 @@ flowchart LR
 | `npm run data:refresh` | rebuild `public/data/snapshot.json` — needs `GITHUB_TOKEN`, `PG_ATLAS_API` |
 | `npm run data:reachability` | govulncheck pass over the existing snapshot (`GOVC_REPOS=owner/name,…` to target) |
 | `npm run data:sast` | Semgrep pass over the existing snapshot (`SEMGREP_REPOS=owner/name,…` to target) |
+| `npm run data:scout` | Scout Soroban contract-lint pass over the existing snapshot (`SCOUT_REPOS=owner/name,…` to target) |
 | `npm run data:review` | apply manual verdicts + lockfile probes to the snapshot |
 | `npm run data:diff` | `node scripts/diff-snapshot.ts <old.json> <new.json>` — markdown report of finding changes (used by the refresh workflow) |
 
@@ -124,6 +126,9 @@ jobs:
 
 Inputs: `fail-on-vuln` (default `true`), `govulncheck` (default `true`),
 `semgrep` (default `true`), `semgrep-config` (default `p/security-audit`),
+`scout` (default `false` — CoinFabrik Soroban contract lint via the
+`coinfabrik/scout` container; compiles the workspace under a pinned detector
+nightly, runs `build.rs`, only fires when a `soroban-sdk` manifest exists),
 `rust-reach` (default `false` — EXPERIMENTAL reachsec MIR call-graph analysis;
 compiles the workspace under pinned nightly, runs `build.rs`, minutes on large
 trees; `not_reachable` is best-effort, advisories without function metadata get

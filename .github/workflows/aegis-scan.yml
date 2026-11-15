@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: 'p/security-audit'
+      scout:
+        description: 'CoinFabrik scout-audit Soroban contract lint in the coinfabrik/scout container — only when a soroban-sdk manifest exists. Compiles the workspace (build.rs executes); opt-in only.'
+        required: false
+        type: boolean
+        default: false
       rust-reach:
         description: 'EXPERIMENTAL: reachsec Rust MIR call-graph reachability — emits real call chains into advisory-affected functions. Compiles the workspace (build.rs executes); opt-in only.'
         required: false
@@ -340,3 +345,84 @@ jobs:
         with:
           sarif_file: semgrep.sarif
           category: semgrep
+
+  # Soroban contract lint: CoinFabrik scout-audit (Dylint) in its container.
+  # Only runs when a soroban-sdk manifest exists — it COMPILES the workspace
+  # under a pinned detector nightly, so dependency build.rs executes; the
+  # container gets no env passthrough. Opt-in only. Tool failures warn and
+  # exit clean; fail-on-vuln gates on the finding count, like Semgrep.
+  scout:
+    if: inputs.scout
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Soroban contracts
+        id: contracts
+        run: |
+          if grep -rl 'soroban-sdk' --include='Cargo.toml' --include='Cargo.lock' . | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scout contract lint (docker)
+        id: scout
+        if: steps.contracts.outputs.present == 'true'
+        env:
+          SARIF: ${{ inputs.sarif-upload }}
+          FAIL: ${{ inputs.fail-on-vuln }}
+          SCOUT_VERSION: '0.3.17'
+          # dylint 4.1.2 (pinned by scout) revparses the deleted master branch of
+          # rust-clippy on cold driver builds; the mirror restores it (see
+          # scripts/scout.ts for the same workaround in the snapshot pipeline).
+          CLIPPY_MASTER_SHA: 'c71f7b63f8fb3d7f0b2b0e26d0e029646f93fb9e'
+        run: |
+          # Project rust-toolchain pins break detector compilation — neutralize them.
+          find . -name 'rust-toolchain' -o -name 'rust-toolchain.toml' -o -name 'rust-toolchain.yaml' | xargs -r rm -f
+          # full bare clone ~15MB — --shallow-since breaks on the JOSH-filtered
+          # history (phantom parents after the rust-clippy JOSH migration)
+          git clone --bare https://github.com/rust-lang/rust-clippy /tmp/clippy-mirror
+          git -C /tmp/clippy-mirror branch -f master "$CLIPPY_MASTER_SHA"
+          mkdir -p /tmp/scout-out
+          code=0
+          docker run --rm \
+            -e INPUT_TARGET=/src \
+            -e 'INPUT_SCOUT_ARGS=-o sarif --output-path /out/scout.sarif' \
+            -v "$PWD:/src" \
+            -v /tmp/scout-out:/out \
+            -v /tmp/clippy-mirror:/clippy:ro \
+            --entrypoint bash \
+            "coinfabrik/scout:$SCOUT_VERSION" \
+            -c 'git config --global url."file:///clippy".insteadOf "https://github.com/rust-lang/rust-clippy" 2>/dev/null; /usr/local/bin/entrypoint.sh' || code=$?
+          # scout exits 0 even with findings; no output file = analysis failed
+          if [ ! -s /tmp/scout-out/scout.sarif ]; then
+            echo "::warning::scout produced no results (exit $code) — the workspace likely did not compile under the detector nightly (rustc 1.92)"
+            echo 'Scout contract lint produced no results — the workspace did not compile under the pinned detector toolchain.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          cp /tmp/scout-out/scout.sarif scout.sarif
+          count=$(jq '[.runs[].results[]] | length' scout.sarif)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          {
+            echo '### Scout (Soroban contract lint)'
+            echo ''
+            echo "| findings | $count |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$count" -gt 0 ]; then
+            echo "::warning title=scout::$count Soroban contract findings — see code scanning"
+          fi
+          if [ "$FAIL" = "true" ] && [ "$count" -gt 0 ]; then exit 1; fi
+
+      - name: Upload Scout SARIF
+        if: inputs.sarif-upload && steps.scout.outputs.count != '' && hashFiles('scout.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scout.sarif
+          category: scout

@@ -59,7 +59,9 @@ async function main() {
   const sevOrder = { error: 0, warning: 1, info: 2 }
   for (const p of snap.projects) {
     if (!targeted.has(p.canonical_id)) continue
-    p.sast_findings = byProject.get(p.canonical_id) ?? []
+    // Replace only this tool's findings — other tools' entries (scout) survive.
+    const others = (p.sast_findings ?? []).filter((f) => f.tool && f.tool !== 'semgrep')
+    p.sast_findings = [...others, ...(byProject.get(p.canonical_id) ?? [])]
     p.sast_findings.sort((a, b) => a.repo_id.localeCompare(b.repo_id) || sevOrder[a.severity] - sevOrder[b.severity])
   }
   snap.summary.sast = { ruleset: SEMGREP_CONFIG, tool_version: toolVersion, repos_targeted: targets.length, repos_scanned: scanned, findings: sev }

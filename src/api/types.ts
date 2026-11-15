@@ -4,8 +4,12 @@
 // "not collected / unknown" — never a guessed value.
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'unknown'
-/** Semgrep severity levels, passed through unchanged (not mapped onto CVSS severities). */
+/** SAST severity levels passed through per tool (not mapped onto CVSS severities).
+ * Semgrep emits error/warning/info; Scout's Critical/High/Medium/Minor is folded
+ * onto the same three buckets (original kept in `raw_severity`). */
 export type SastSeverity = 'error' | 'warning' | 'info'
+/** Which SAST engine produced a finding. Absent = 'semgrep' (pre-Scout snapshots). */
+export type SastTool = 'semgrep' | 'scout'
 export type ActivityStatus = 'live' | 'in-dev' | 'discontinued' | 'non-responsive'
 export type Confidence = 'confirmed' | 'possible' | 'inferred'
 /** govulncheck call-analysis verdict (Go repos only). Orthogonal to confidence:
@@ -172,8 +176,9 @@ export interface AuditReport {
   url: string
 }
 
-/** A Semgrep SAST finding (rule match in repo source). Separate from Finding — no
- * priority score, no CVE semantics; severity is Semgrep's own error/warning/info. */
+/** A SAST finding (rule/detector match in repo source). Separate from Finding — no
+ * priority score, no CVE semantics; severity is each tool's own error/warning/info
+ * scale (Scout severities are folded onto it). */
 export interface SastFinding {
   /** repo_id|check_id|path:line:col — location-anchored, stable across commits while the matched code is unchanged. */
   id: string
@@ -181,15 +186,19 @@ export interface SastFinding {
   repo_name: string
   project_id: string
   project_name: string
-  /** Semgrep check_id, e.g. go.lang.security.audit.crypto.use_of_weak_crypto */
+  /** Semgrep check_id or Scout detector name, e.g. go.lang.security.audit.crypto.use_of_weak_crypto / soroban-divide-before-multiply */
   rule_id: string
   message: string
   severity: SastSeverity
+  /** Which engine produced it. Absent = 'semgrep' (pre-Scout snapshots). */
+  tool?: SastTool
+  /** Tool-native severity when it doesn't fit the three-bucket scale (e.g. Scout 'Critical'/'Minor'). */
+  raw_severity?: string
   /** Repo-relative file path. */
   path: string
   start_line: number
   end_line: number
-  /** Source lines Semgrep matched (trimmed). */
+  /** Source lines matched (trimmed). */
   snippet: string | null
   /** HEAD commit that was scanned — enables GitHub blob deep-links. */
   commit_sha: string
@@ -286,6 +295,16 @@ export interface EcosystemSummary {
     tool_version: string | null
     repos_targeted: number
     repos_scanned: number
+    findings: Record<SastSeverity, number>
+  } | null
+  /** Scout (CoinFabrik) Soroban contract-lint pass stats. null = pass never ran. */
+  scout?: {
+    tool_version: string | null
+    runner: 'docker' | 'local' | null
+    repos_targeted: number
+    repos_scanned: number
+    /** Repos where a soroban-sdk manifest was found (candidates actually analyzed). */
+    contracts_found: number
     findings: Record<SastSeverity, number>
   } | null
   median_fixable_advisory_age_days: number | null

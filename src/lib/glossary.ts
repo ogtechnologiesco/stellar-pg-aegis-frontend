@@ -209,11 +209,12 @@ export const GLOSSARY: GlossaryTerm[] = [
   },
   {
     slug: 'sast',
-    term: 'SAST (Semgrep)',
-    short: 'Static analysis — Semgrep security rules matched against a repo’s source at HEAD, reported separately from CVE findings.',
+    term: 'SAST (Semgrep · Scout)',
+    short: 'Static analysis — security rules matched against a repo’s source at HEAD, reported separately from CVE findings.',
     details: [
-      'Static Application Security Testing finds risky code patterns — weak crypto, disabled TLS verification, injection sinks — by matching rules against source rather than against a dependency list. Aegis runs Semgrep’s p/security-audit ruleset on WG-listed repos: each repo is shallow-cloned at HEAD and results are cached per commit SHA for 30 days.',
-      'SAST findings are deliberately kept apart from vulnerability findings: they have no CVE, no fix version and no priority score. Their severity is Semgrep’s own error / warning / info, shown as-is. Each finding links into the repo at the exact scanned commit, so file:line deep-links never drift.',
+      'Static Application Security Testing finds risky code patterns — weak crypto, disabled TLS verification, injection sinks — by matching rules against source rather than against a dependency list. Aegis runs two engines on WG-listed repos: Semgrep’s p/security-audit ruleset (generic, multi-language) and Scout, CoinFabrik’s Soroban-aware contract lint, on repos whose manifests reference soroban-sdk. Results are cached per commit SHA for 30 days.',
+      'Scout is deeper where it applies — its detectors encode Soroban-specific audit knowledge (missing require_auth, initialization races, storage DoS, allowance-model bugs) — but it compiles each contract under a pinned detector nightly, so dependency build.rs executes. It runs inside a container in CI; a repo that can’t compile under the detector toolchain reports no data rather than an empty result.',
+      'SAST findings are deliberately kept apart from vulnerability findings: they have no CVE, no fix version and no priority score. Severity is each tool’s own scale, shown as-is (Scout’s Critical/Medium/Minor/Enhancement folds onto error/warning/info with the original kept alongside). Each finding links into the repo at the exact scanned commit, so file:line deep-links never drift.',
       'Rule matches are evidence, not proof — a flagged pattern says a human should look, not that an exploit exists. That is why they live in a separate list and never inflate a project’s open-finding counts.',
     ],
     related: ['reachability', 'hygiene-profile'],
