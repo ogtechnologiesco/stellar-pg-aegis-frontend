@@ -307,8 +307,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
+          # no cache: caller repos may have no requirements.txt/pyproject.toml
+          # (setup-python fails pip caching without a dependency file to hash)
           python-version: '3.12'
-          cache: pip
 
       - name: Install Semgrep
         run: pip install semgrep==1.184.0
