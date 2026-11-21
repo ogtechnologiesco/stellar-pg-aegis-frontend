@@ -5,7 +5,7 @@ import { useFindings, useProjects, useSummary, useVulns } from '../api'
 import { CoverageRing, SeverityDonut } from '../components/charts'
 import { FindingsTable } from '../components/FindingsTable'
 import { Card, CardHeader, ErrorState, KevBadge, PageHeader, Pill, SeverityBadge, Skeleton } from '../components/ui'
-import { SEVERITIES, SEVERITY_COLOR, relativeTime, totalFindings } from '../lib/format'
+import { SEVERITIES, SEVERITY_COLOR, relativeTime } from '../lib/format'
 
 function Kpi({ icon, label, value, hint, accent, to }: { icon: ReactNode; label: string; value: ReactNode; hint?: ReactNode; accent: string; to: string }) {
   return (
@@ -34,6 +34,7 @@ export default function Overview() {
   const pgProjects = useProjects({ wg_listed: true, limit: 1 })
   const reachableProjects = useProjects({ reachable: true, limit: 1 })
   const auditedProjects = useProjects({ audited: true, limit: 1 })
+  const actionableProjects = useProjects({ actionable: true, limit: 1 })
 
   if (summary.error) return <ErrorState error={summary.error} />
   const s = summary.data
@@ -62,7 +63,7 @@ export default function Overview() {
           Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-[132px] rounded-2xl" />)
         ) : (
           <>
-            <Kpi icon={<ShieldAlert className="size-4" />} label="Open findings" value={totalFindings(s.open_findings)} hint={`${s.open_findings.critical} critical · ${s.open_findings.high} high · across ${s.affected_projects} projects`} accent="#f43f5e" to="/projects?sort=findings" />
+            <Kpi icon={<ShieldAlert className="size-4" />} label="Needs action" value={s.actionable_findings} hint={`exploited, reachable or overdue-fixable findings · across ${actionableProjects.data?.total ?? '…'} projects`} accent="#f43f5e" to="/projects?actionable=1" />
             <Kpi icon={<Flame className="size-4" />} label="Known exploited (KEV)" value={s.kev_findings} hint={`Actively exploited in the wild · across ${kevProjects.data?.total ?? '…'} projects`} accent="#fb923c" to="/projects?kev=1" />
             <Kpi icon={<Wrench className="size-4" />} label="Fixable now" value={s.fixable_findings} hint={`A patched version exists upstream · across ${fixableProjects.data?.total ?? '…'} projects`} accent="#34d399" to="/projects?fixable=1" />
             <Kpi icon={<Timer className="size-4" />} label="Median advisory age" value={s.median_fixable_advisory_age_days != null ? `${s.median_fixable_advisory_age_days}d` : '—'} hint={`Snapshot ${relativeTime(s.generated_at)}`} accent="#818cf8" to="/advisories?sort=oldest" />
@@ -128,10 +129,21 @@ export default function Overview() {
           <div className="grid gap-5 p-5">
             {s ? (
               <>
-                <CoverageRing value={s.policy_coverage} label="Publish a SECURITY.md" color="#818cf8" />
-                <CoverageRing value={s.pvr_coverage} label="GitHub private vulnerability reporting enabled" color="#22d3ee" />
-                <CoverageRing value={s.sbom_coverage} label="Submit verified SBOMs to PG Atlas" color="#34d399" />
-                <CoverageRing value={s.audit_coverage} label="of WG public goods have a Security Portal audit" color="#fbbf24" />
+                <Link to="/projects?policy=missing" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects without a SECURITY.md">
+                  <CoverageRing value={s.policy_coverage} label="Publish a SECURITY.md" color="#818cf8" />
+                </Link>
+                <Link to="/projects?nopvr=1" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects without private vulnerability reporting">
+                  <CoverageRing value={s.pvr_coverage} label="GitHub private vulnerability reporting enabled" color="#22d3ee" />
+                </Link>
+                <Link to="/projects?policy=nochannel" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects without a usable private disclosure channel">
+                  <CoverageRing value={s.disclosure_coverage} label="have a usable private disclosure channel" color="#fb7185" />
+                </Link>
+                <Link to="/projects?nosbom=1" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects without a verified PG Atlas SBOM">
+                  <CoverageRing value={s.sbom_coverage} label="Submit verified SBOMs to PG Atlas" color="#34d399" />
+                </Link>
+                <Link to="/projects?noaudit=1&scope=pg" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects without a Security Portal audit">
+                  <CoverageRing value={s.audit_coverage} label="of WG public goods have a Security Portal audit" color="#fbbf24" />
+                </Link>
               </>
             ) : (
               <Skeleton className="h-56" />

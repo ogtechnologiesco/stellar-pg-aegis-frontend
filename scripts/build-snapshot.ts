@@ -44,7 +44,7 @@ import type {
   Snapshot,
   Vuln,
 } from '../src/api/types.ts'
-import { computePriority, logNorm } from '../src/lib/priority.ts'
+import { actionableAgeDays, computePriority, isActionable, logNorm } from '../src/lib/priority.ts'
 import { caaRecords, dnssecStatus } from '../src/lib/doh.ts'
 import { tlsCheck } from './tls.ts'
 import { affectedFor, fetchOsv, kindOf, LABEL, severityOf, UPGRADE_HINT, type OsvVuln } from './osv.ts'
@@ -561,6 +561,7 @@ async function main() {
           reachability: null,
           reachability_trace: null,
           status: 'open',
+          actionable: false,
           fixed_versions: fixed,
           upgrade_hint: fixed[0] ? (UPGRADE_HINT[p.ecosystem]?.(p.name, fixed[0]) ?? null) : null,
           advisory_published: o.published ?? null,
@@ -747,6 +748,7 @@ async function main() {
           reachability: g.v,
           reachability_trace: g.t,
           status: 'open',
+          actionable: false,
           fixed_versions: fixed,
           upgrade_hint: fixed[0] ? (UPGRADE_HINT.Go?.(g.m!, fixed[0]) ?? null) : null,
           advisory_published: o.published ?? null,
@@ -1068,6 +1070,18 @@ async function main() {
     const pFindings = findings.filter((f) => f.project_id === p.canonical_id)
     const open_findings = emptyCounts()
     pFindings.forEach((f) => open_findings[f.severity]++)
+    // Needs-action gate runs after reachability annotation so call-analysis
+    // verdicts (called / not-called / unflagged) are already on each finding.
+    const now = Date.parse(NOW)
+    let actionable_findings = 0
+    let oldest_actionable_age_days: number | null = null
+    for (const f of pFindings) {
+      f.actionable = isActionable(f, now)
+      if (!f.actionable) continue
+      actionable_findings++
+      const age = actionableAgeDays(f, now)
+      if (age != null) oldest_actionable_age_days = Math.max(oldest_actionable_age_days ?? 0, age)
+    }
     const repos: Repo[] = pRepos
       .map((r) => {
         const gh = ghRepoOf(r.repo_url)
@@ -1160,6 +1174,9 @@ async function main() {
       repo_count: repos.length,
       open_findings,
       max_priority: pFindings[0]?.priority ?? 0,
+      actionable_findings,
+      oldest_actionable_age_days,
+      has_private_channel: channels.some((c) => c.kind !== 'other'),
       hygiene,
       description: details[i]?.metadata?.description ?? null,
       website: details[i]?.metadata?.website ?? null,
@@ -1225,10 +1242,12 @@ async function main() {
     sbom_coverage: projects.filter((p) => p.repos.some((r) => r.sbom_verified)).length / Math.max(1, projects.length),
     policy_coverage: share((p) => p.hygiene.has_security_policy),
     pvr_coverage: share((p) => p.hygiene.pvr_enabled),
+    disclosure_coverage: GH_TOKEN ? share((p) => p.has_private_channel) : null,
     open_findings: open,
     affected_projects: new Set(findings.map((f) => f.project_id)).size,
     kev_findings: findings.filter((f) => f.kev).length,
     fixable_findings: findings.filter((f) => f.fixed_versions.length > 0).length,
+    actionable_findings: findings.filter((f) => f.actionable).length,
     reachability: govcResults.size
       ? findings.reduce((a, f) => (f.reachability ? { ...a, [f.reachability]: a[f.reachability] + 1 } : a), { called: 0, 'not-called': 0, unflagged: 0 } as Record<Reachability, number>)
       : null,

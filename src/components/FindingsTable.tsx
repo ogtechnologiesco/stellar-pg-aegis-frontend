@@ -7,6 +7,33 @@ import { PRIORITY_WEIGHTS } from '../lib/priority'
 import { relativeTime } from '../lib/format'
 import { ConfidencePill, CopyButton, EmptyState, KevBadge, Pill, PriorityMeter, ReachabilityPill, SeverityBadge } from './ui'
 
+const DOJO_LABEL: Record<NonNullable<Finding['dojo_status']>, string> = {
+  new: 'in triage',
+  verified: 'verified',
+  false_positive: 'false positive',
+  risk_accepted: 'risk accepted',
+  out_of_scope: 'out of scope',
+  mitigated: 'mitigated',
+  duplicate: 'duplicate',
+}
+
+function DojoBadges({ f }: { f: Finding }) {
+  return (
+    <>
+      {f.dojo_status && f.dojo_status !== 'new' && (
+        <Pill tone={f.dojo_status === 'verified' || f.dojo_status === 'mitigated' ? 'emerald' : 'slate'} title={`DefectDojo triage: ${DOJO_LABEL[f.dojo_status]}`}>
+          {DOJO_LABEL[f.dojo_status]}
+        </Pill>
+      )}
+      {f.sla_days_remaining != null && (
+        <Pill tone={f.sla_days_remaining < 0 ? 'rose' : 'slate'} title="DefectDojo SLA countdown — negative means breached">
+          SLA {f.sla_days_remaining < 0 ? `−${-f.sla_days_remaining}` : f.sla_days_remaining}d
+        </Pill>
+      )}
+    </>
+  )
+}
+
 const BREAKDOWN_LABEL: Record<keyof PriorityBreakdown, string> = {
   severity: 'Severity (CVSS)',
   criticality: 'PG Atlas criticality',
@@ -132,6 +159,7 @@ export function FindingsTable({ findings, showProject = false, expandable = true
                     <div className="flex flex-wrap items-center gap-1.5">
                       <SeverityBadge severity={f.severity} cvss={f.cvss} />
                       {f.kev && <KevBadge />}
+                      {f.actionable && <Pill tone="rose" title="Needs action — exploited, a confirmed call path, high EPSS, or a fix unpatched past the grace window">action</Pill>}
                       {f.kind && f.kind !== 'vulnerability' && <Pill tone={f.kind === 'malware' ? 'rose' : 'amber'}>{f.kind}</Pill>}
                     </div>
                     <div className="mt-1.5 text-sm text-slate-200">{f.summary}</div>
@@ -157,6 +185,7 @@ export function FindingsTable({ findings, showProject = false, expandable = true
                   </Pill>
                   <ConfidencePill confidence={f.confidence} />
                   <ReachabilityPill reachability={f.reachability} trace={f.reachability_trace} />
+                  <DojoBadges f={f} />
                   <span className="font-mono text-xs">{f.fixed_versions[0] ? <span className="text-emerald-300">→ {f.fixed_versions[0]}</span> : <span className="text-amber-300">no fix</span>}</span>
                   {expandable && (
                     <button type="button" onClick={() => setOpen(isOpen ? null : f.id)} className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-indigo-300 transition hover:bg-white/[0.04] hover:text-indigo-200" aria-expanded={isOpen}>
@@ -224,6 +253,7 @@ export function FindingsTable({ findings, showProject = false, expandable = true
                     <div className="flex items-center gap-1.5">
                       <SeverityBadge severity={f.severity} cvss={f.cvss} />
                       {f.kev && <KevBadge />}
+                      {f.actionable && <Pill tone="rose" title="Needs action — exploited, a confirmed call path, high EPSS, or a fix unpatched past the grace window">action</Pill>}
                       {f.kind && f.kind !== 'vulnerability' && <Pill tone={f.kind === 'malware' ? 'rose' : 'amber'}>{f.kind}</Pill>}
                     </div>
                   </td>
@@ -236,6 +266,7 @@ export function FindingsTable({ findings, showProject = false, expandable = true
                     <div className="flex flex-col items-start gap-1">
                       <ConfidencePill confidence={f.confidence} />
                       <ReachabilityPill reachability={f.reachability} trace={f.reachability_trace} />
+                      <DojoBadges f={f} />
                     </div>
                   </td>
                   <td className="td font-mono text-xs">{f.fixed_versions[0] ? <span className="text-emerald-300">{f.fixed_versions[0]}</span> : <span className="text-amber-300">none</span>}</td>

@@ -14,7 +14,7 @@ const page = <T>(items: T[], limit = 50, offset = 0): Paginated<T> => ({ items: 
 const SEV_WEIGHT: Record<Severity, number> = { critical: 10_000, high: 1000, medium: 100, low: 10, unknown: 1 }
 const findingWeight = (p: ProjectSummary) => (Object.keys(SEV_WEIGHT) as Severity[]).reduce((a, s) => a + p.open_findings[s] * SEV_WEIGHT[s], 0)
 
-const SUMMARY_KEYS = ['canonical_id', 'display_name', 'wg_listed', 'category', 'activity_status', 'criticality_score', 'adoption_score', 'pony_factor', 'git_owner_url', 'repo_count', 'open_findings', 'max_priority', 'hygiene'] as const satisfies readonly (keyof ProjectSummary)[]
+const SUMMARY_KEYS = ['canonical_id', 'display_name', 'wg_listed', 'category', 'activity_status', 'criticality_score', 'adoption_score', 'pony_factor', 'git_owner_url', 'repo_count', 'open_findings', 'max_priority', 'actionable_findings', 'oldest_actionable_age_days', 'has_private_channel', 'hygiene'] as const satisfies readonly (keyof ProjectSummary)[]
 const toSummary = (p: ProjectDetail) => Object.fromEntries(SUMMARY_KEYS.map((k) => [k, p[k]])) as unknown as ProjectSummary
 
 const matches = (haystack: string, needle?: string) => !needle || haystack.toLowerCase().includes(needle.toLowerCase())
@@ -22,15 +22,19 @@ const matches = (haystack: string, needle?: string) => !needle || haystack.toLow
 export const snapshotClient: AegisApi = {
   mode: 'snapshot',
   getSummary: async () => (await loadSnapshot()).summary,
-  listProjects: async ({ search, activity_status, has_policy, kev, fixable, reachable, kind, wg_listed, audited, sort = 'priority', limit, offset } = {}) => {
+  listProjects: async ({ search, activity_status, has_policy, kev, fixable, actionable, reachable, kind, wg_listed, audited, disclosure_gap, missing_pvr, missing_sbom, sort = 'actionable', limit, offset } = {}) => {
     const { projects } = await loadSnapshot()
     const items = projects
       .filter((p) => !kev || p.findings.some((f) => f.kev))
       .filter((p) => !fixable || p.findings.some((f) => f.fixed_versions.length > 0))
+      .filter((p) => !actionable || p.findings.some((f) => f.actionable))
       .filter((p) => !reachable || p.findings.some((f) => f.reachability === 'called'))
       .filter((p) => !kind || p.findings.some((f) => (f.kind ?? 'vulnerability') === kind))
       .filter((p) => wg_listed === undefined || p.wg_listed === wg_listed)
       .filter((p) => audited === undefined || (p.audits?.length ?? 0) > 0 === audited)
+      .filter((p) => !disclosure_gap || !p.has_private_channel)
+      .filter((p) => !missing_pvr || p.repos.every((r) => r.pvr_enabled !== true))
+      .filter((p) => !missing_sbom || !p.repos.some((r) => r.sbom_verified))
       .map(toSummary)
       .filter((p) => matches(`${p.display_name} ${p.canonical_id} ${p.category ?? ''}`, search))
       .filter((p) => !activity_status || p.activity_status === activity_status)
@@ -39,7 +43,8 @@ export const snapshotClient: AegisApi = {
         if (sort === 'name') return a.display_name.localeCompare(b.display_name)
         if (sort === 'criticality') return (b.criticality_score ?? -1) - (a.criticality_score ?? -1)
         if (sort === 'findings') return findingWeight(b) - findingWeight(a)
-        return b.max_priority - a.max_priority || (b.criticality_score ?? -1) - (a.criticality_score ?? -1)
+        if (sort === 'priority') return b.max_priority - a.max_priority || (b.criticality_score ?? -1) - (a.criticality_score ?? -1)
+        return b.actionable_findings - a.actionable_findings || (b.criticality_score ?? -1) - (a.criticality_score ?? -1)
       })
     return page(items, limit, offset)
   },

@@ -15,6 +15,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Finding, Reachability, SeverityCounts, Snapshot } from '../src/api/types.ts'
 import { computePriority, logNorm } from '../src/lib/priority.ts'
+import { recountActionable } from './actionable.ts'
 import { CACHE_DIR, log } from './cache.ts'
 import { affectedFor, fetchOsv, kindOf, severityOf, UPGRADE_HINT, type OsvVuln } from './osv.ts'
 import { ghKey, ghRepoOf, govcBinary, govcRepo, GOVC_MAX, GOVC_REPOS, type ReachVerdicts } from './govulncheck.ts'
@@ -122,6 +123,7 @@ async function main() {
         reachability: g.v,
         reachability_trace: g.t,
         status: 'open',
+        actionable: false,
         fixed_versions: fixed,
         upgrade_hint: fixed[0] ? (UPGRADE_HINT.Go?.(g.m!, fixed[0]) ?? null) : null,
         advisory_published: o.published ?? null,
@@ -176,6 +178,7 @@ async function main() {
   snap.summary.by_ecosystem = [...eco.entries()].map(([ecosystem, v]) => ({ ecosystem, findings: v.findings, repos: v.repos.size })).sort((a, b) => b.findings - a.findings)
   snap.summary.median_fixable_advisory_age_days = ages.length ? Math.round(ages[ages.length >> 1]) : null
   snap.summary.reachability = results.size || reach.called + reach['not-called'] + reach.unflagged ? reach : null
+  snap.summary.actionable_findings = recountActionable(snap.projects, Date.now())
   await mkdir(dirname(OUT), { recursive: true })
   await mkdir(CACHE_DIR, { recursive: true })
   await writeFile(OUT, JSON.stringify(snap))

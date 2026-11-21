@@ -19,6 +19,9 @@ export type Confidence = 'confirmed' | 'possible' | 'inferred'
  * module may differ from the PG Atlas edge, or already be patched). */
 export type Reachability = 'called' | 'not-called' | 'unflagged'
 export type FindingStatus = 'open' | 'fixed' | 'withdrawn' | 'ignored'
+/** Triage state synced back from the WG's DefectDojo instance (internal triage
+ * backend — `data:dojo-push`/`data:dojo-pull`). 'new' = pushed but untriaged. */
+export type DojoStatus = 'new' | 'verified' | 'false_positive' | 'risk_accepted' | 'out_of_scope' | 'mitigated' | 'duplicate'
 export type Resolution = 'exact' | 'range'
 export type EdgeSource = 'verified-sbom' | 'inferred-shadow' | 'govulncheck'
 /** RustSec advisory categories + MAL-* malware; 'vulnerability' is the default CVE-class advisory. */
@@ -90,6 +93,12 @@ export interface ProjectSummary {
   repo_count: number
   open_findings: SeverityCounts
   max_priority: number
+  /** Findings passing the needs-action gate (exploit evidence or overdue fix) — the project flag, not raw CVE counts. */
+  actionable_findings: number
+  /** Oldest actionable finding's advisory age in days; null when none. */
+  oldest_actionable_age_days: number | null
+  /** Has ≥1 usable private disclosure channel (PVR, policy contact, security.txt, bounty, intake form) — anything beyond the bare-repo fallback. */
+  has_private_channel: boolean
   hygiene: Hygiene
 }
 
@@ -150,6 +159,13 @@ export interface Finding {
   /** For 'called': "pkg.VulnFunc ← entrypkg.caller" from the govulncheck trace. */
   reachability_trace: string | null
   status: FindingStatus
+  /** Needs-action gate verdict (see src/lib/priority.ts `isActionable`) — replaces
+   * raw CVE presence as the flag signal. */
+  actionable: boolean
+  /** DefectDojo triage state from `dojo pull`; null/absent = not synced. */
+  dojo_status?: DojoStatus | null
+  /** SLA countdown in days from DefectDojo; negative = breached. null/absent = no SLA. */
+  sla_days_remaining?: number | null
   priority: number
   priority_breakdown: PriorityBreakdown
   fixed_versions: string[]
@@ -283,10 +299,14 @@ export interface EcosystemSummary {
   sbom_coverage: number
   policy_coverage: number | null
   pvr_coverage: number | null
+  /** Share of projects with ≥1 usable private disclosure channel. null = disclosure data not collected. */
+  disclosure_coverage: number | null
   open_findings: SeverityCounts
   affected_projects: number
   kev_findings: number
   fixable_findings: number
+  /** Ecosystem-wide count of findings passing the needs-action gate. */
+  actionable_findings: number
   /** govulncheck verdict counts across Go findings. null = call analysis never ran. */
   reachability: Record<Reachability, number> | null
   /** Semgrep SAST pass stats. null = SAST never ran. */
@@ -324,14 +344,22 @@ export interface ProjectQuery {
   has_policy?: boolean
   kev?: boolean
   fixable?: boolean
+  /** Has ≥1 finding passing the needs-action gate. */
+  actionable?: boolean
   /** Has ≥1 finding where govulncheck found a call path into a vulnerable symbol. */
   reachable?: boolean
   /** Has ≥1 finding whose advisory is of this kind (e.g. 'unmaintained', 'vulnerability'). */
   kind?: AdvisoryKind
   /** Has ≥1 approved audit report on the Stellar Security Portal. */
   audited?: boolean
+  /** No usable private disclosure channel — the standards-adoption gap list. */
+  disclosure_gap?: boolean
+  /** No repo with GitHub private vulnerability reporting enabled (checked & absent). */
+  missing_pvr?: boolean
+  /** No repo with a verified SBOM submitted to PG Atlas. */
+  missing_sbom?: boolean
   wg_listed?: boolean
-  sort?: 'priority' | 'criticality' | 'name' | 'findings'
+  sort?: 'actionable' | 'priority' | 'criticality' | 'name' | 'findings'
   limit?: number
   offset?: number
 }

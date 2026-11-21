@@ -26,6 +26,7 @@ const added = [...after.values()].filter((f) => !before.has(f.id)).sort((a, b) =
 const removed = [...before.values()].filter((f) => !after.has(f.id))
 const kevNew = added.filter((f) => f.kev).length + [...after.values()].filter((f) => f.kev && before.has(f.id) && !before.get(f.id)!.kev).length
 const reachFlips = [...after.values()].filter((f) => before.has(f.id) && before.get(f.id)!.reachability !== f.reachability)
+const actionableNew = added.filter((f) => f.actionable).length + [...after.values()].filter((f) => f.actionable && before.get(f.id)?.actionable === false).length
 
 const sastOf = (s: Snapshot) => s.projects.flatMap((p) => p.sast_findings ?? [])
 const sastById = (fs: SastFinding[]) => new Map(fs.map((f) => [f.id, f]))
@@ -45,7 +46,7 @@ const row = (f: Finding) =>
 const out: string[] = [
   `## Snapshot diff — ${next.summary.generated_at.slice(0, 10)}`,
   '',
-  `**${added.length} new findings** · ${removed.length} resolved · ${kevNew} known-exploited · ${newProjects.size} projects newly affected`,
+  `**${added.length} new findings** · ${removed.length} resolved · ${kevNew} known-exploited · ${actionableNew} needing action · ${newProjects.size} projects newly affected`,
   '',
 ]
 if (added.length) {
@@ -74,5 +75,5 @@ if (!added.length && !removed.length && !reachFlips.length && !sastAdded.length 
 console.log(out.join('\n'))
 
 if (process.env.GITHUB_OUTPUT) {
-  await appendFile(process.env.GITHUB_OUTPUT, `new_findings=${added.length}\nresolved_findings=${removed.length}\nkev_new=${kevNew}\nsast_new=${sastAdded.length}\nsast_resolved=${sastRemoved.length}\n`)
+  await appendFile(process.env.GITHUB_OUTPUT, `new_findings=${added.length}\nresolved_findings=${removed.length}\nkev_new=${kevNew}\nactionable_new=${actionableNew}\nsast_new=${sastAdded.length}\nsast_resolved=${sastRemoved.length}\n`)
 }

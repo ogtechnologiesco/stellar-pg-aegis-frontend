@@ -17,6 +17,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Finding, Reachability, SeverityCounts, Snapshot } from '../src/api/types.ts'
 import { computePriority, logNorm } from '../src/lib/priority.ts'
+import { recountActionable } from './actionable.ts'
 import { log } from './cache.ts'
 import { affectedFor, fetchOsv, kindOf, severityOf, UPGRADE_HINT } from './osv.ts'
 
@@ -189,6 +190,7 @@ async function emitManifestFindings(snap: Snapshot): Promise<number> {
             reachability: null,
             reachability_trace: 'manual: verified present in lockfile at HEAD — PG Atlas edge missing',
             status: 'open',
+            actionable: false,
             fixed_versions: fixed,
             upgrade_hint: fixed[0] ? (UPGRADE_HINT[d.eco]?.(d.name, fixed[0]) ?? null) : null,
             advisory_published: o.published ?? null,
@@ -282,6 +284,7 @@ async function main() {
   snap.summary.by_ecosystem = [...eco.entries()].map(([ecosystem, v]) => ({ ecosystem, findings: v.findings, repos: v.repos.size })).sort((a, b) => b.findings - a.findings)
   snap.summary.median_fixable_advisory_age_days = ages.length ? Math.round(ages[ages.length >> 1]) : null
   snap.summary.reachability = reach.called + reach['not-called'] + reach.unflagged ? reach : null
+  snap.summary.actionable_findings = recountActionable(snap.projects, Date.now())
   await writeFile(OUT, JSON.stringify(snap))
   log(`wrote ${OUT} — called: ${reach.called}, not-called: ${reach['not-called']}, unflagged: ${reach.unflagged}`)
 }

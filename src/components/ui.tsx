@@ -165,16 +165,21 @@ export function CheckItem({ ok, warn, label, title }: { ok: boolean | null; warn
   )
 }
 
-export function CopyButton({ value, className }: { value: string; className?: string }) {
+export function CopyButton({ value, label, className }: { value: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <button
       type="button"
       onClick={() => navigator.clipboard.writeText(value).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}
-      className={clsx('grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-slate-400 transition hover:bg-white/[0.06] hover:text-white', className)}
-      aria-label="Copy to clipboard"
+      className={clsx(
+        'grid shrink-0 cursor-pointer place-items-center rounded-lg text-slate-400 transition hover:bg-white/[0.06] hover:text-white',
+        label ? 'size-auto grid-flow-col gap-1.5 px-2.5 py-1.5 text-xs' : 'size-8',
+        className,
+      )}
+      aria-label={label ?? 'Copy to clipboard'}
     >
       {copied ? <Check className="size-4 text-emerald-300" /> : <Copy className="size-4" />}
+      {label && <span>{copied ? 'Copied' : label}</span>}
     </button>
   )
 }
