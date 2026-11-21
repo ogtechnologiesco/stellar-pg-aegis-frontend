@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { Ban, Clock, Lock, Search, ShieldCheck } from 'lucide-react'
-import { useDisclosureLookup } from '../api'
+import { Ban, Clock, Lock, Search, ShieldCheck, ShieldOff } from 'lucide-react'
+import { useDisclosureLookup, useProjects } from '../api'
 import { DisclosureChannels } from '../components/DisclosureCard'
 import { Card, EmptyState, ErrorState, PageHeader, Skeleton, StatusPill } from '../components/ui'
 
@@ -26,6 +26,7 @@ export default function Disclose() {
   const [query, setQuery] = useState(params.get('q') ?? '')
   const debounced = useDebounced(query)
   const { data, error, isFetching } = useDisclosureLookup(debounced)
+  const gaps = useProjects({ disclosure_gap: true, wg_listed: true, sort: 'criticality', limit: 10 })
 
   useEffect(() => {
     setParams(
@@ -52,9 +53,31 @@ export default function Disclose() {
           {error ? (
             <ErrorState error={error} />
           ) : !debounced ? (
-            <Card>
-              <EmptyState icon={<Search className="size-5" />} title="Search for a project" description="Results show SECURITY.md contacts, GitHub private vulnerability reporting, security.txt and bounty programs, ranked by preference." />
-            </Card>
+            <>
+              <Card>
+                <EmptyState icon={<Search className="size-5" />} title="Search for a project" description="Results show SECURITY.md contacts, GitHub private vulnerability reporting, security.txt and bounty programs, ranked by preference." />
+              </Card>
+              {(gaps.data?.total ?? 0) > 0 && (
+                <Card className="p-5">
+                  <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-100">
+                    <ShieldOff className="size-4 text-amber-300" /> Coverage gaps — {gaps.data!.total} public good{gaps.data!.total === 1 ? '' : 's'} without a private channel
+                  </h2>
+                  <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                    No PVR, SECURITY.md contact or security.txt was found. These are standards-adoption targets for the WG — enabling PVR or publishing a policy is the fix.
+                  </p>
+                  <ul className="space-y-1">
+                    {gaps.data!.items.map((p) => (
+                      <li key={p.canonical_id}>
+                        <Link to={`/projects/${p.canonical_id}`} className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm text-slate-300 transition hover:bg-white/[0.03] hover:text-white">
+                          <span>{p.display_name}</span>
+                          <span className="text-xs text-slate-600">{p.category ?? '—'}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+            </>
           ) : isFetching && !data ? (
             <Skeleton className="h-40 rounded-2xl" />
           ) : !data?.length ? (

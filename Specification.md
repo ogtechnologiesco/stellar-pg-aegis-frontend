@@ -213,6 +213,26 @@ priority = w1·severity_norm(CVSS/OSV severity)
 ```
 Default weights published in config; per-finding breakdown returned by the API.
 
+### FR5b Needs-action gate (project flag)
+
+Raw CVE presence/counts are **not** used to flag or rate projects. A finding is
+`actionable` — and contributes to `actionable_findings` — only when:
+
+- `kev` (known-exploited) or `reachability = called` (confirmed call path), or
+- `fixable` AND `epss ≥ 0.2`, or
+- `fixable` AND advisory age > 90 days (remediation latency), or
+- `severity = critical` AND advisory age > 14 days, or
+- `kind = malware` (always).
+
+Excluded regardless of the above: `reachability = not-called | unflagged` (cleared
+verdicts, except under the `kev`/`called` clauses), `confidence = inferred` edges
+(except `kev`/`called`), non-vulnerability advisory kinds (unmaintained, unsound,
+notice, yanked), and non-`open` findings.
+
+Rollups: `actionable_findings` + `oldest_actionable_age_days` per project;
+`actionable_findings` in the ecosystem summary. Priority score still orders
+findings within the action set — it is not the flag.
+
 ### FR6 Disclosure routing
 - FR6.1 Detect SECURITY.md in standard locations incl. org-level fallback; record source URL and commit SHA.
 - FR6.2 Extract contacts: emails, URLs (HackerOne/Immunefi/forms), PGP key references, "use GitHub PVR" instructions, supported-versions table, stated response SLA.
@@ -220,12 +240,17 @@ Default weights published in config; per-finding breakdown returned by the API.
 - FR6.4 Rank channels: PVR enabled > SECURITY.md designated channel > bounty program > security.txt > maintainer contact (last resort, flagged).
 - FR6.5 Never recommend public issues for vulnerability reports.
 - FR6.6 Re-verify weekly; show `last_verified_at`.
+- FR6.7 Surface adoption gaps: `has_private_channel` per project (≥1 usable channel —
+  any kind except the bare-repo `other` fallback), `disclosure_coverage` in the
+  ecosystem summary, a `disclosure_gap` project filter, and per-project "get
+  covered" actions (PVR docs link + copyable SECURITY.md / RFC 9116 security.txt
+  templates). Aegis indexes standard channels — it does not provide its own.
 
 ### FR7 Hygiene profile (per repo and aggregated per project)
 Boolean/numeric signals, *profiles not a score*:
 - has_security_policy, pvr_enabled, has_security_txt, dnssec_status, has_caa, tls_status (with error + cert expiry), bounty_covered
 - published_advisories_count, last_advisory_at
-- open_findings_by_severity, oldest_unpatched_fixable_age_days
+- open_findings_by_severity, actionable_findings, oldest_actionable_age_days, oldest_unpatched_fixable_age_days
 - dependency_update_tool (Scorecard), scorecard_overall, selected Scorecard checks
 - security_issue_response_median_hours (§4.4)
 - audit_reports_on_security_portal (link/count)
@@ -234,7 +259,7 @@ Boolean/numeric signals, *profiles not a score*:
 - FR8.1 For each finding: fixed version(s) from OSV `affected.ranges.events.fixed`, minimal upgrade target, upstream advisory and patch commit links.
 - FR8.2 Ecosystem-specific upgrade hint (e.g., `cargo update -p <crate> --precise <v>`, `npm install <pkg>@<v>`, `pip install '<pkg>>=<v>'`, `dart pub upgrade <pkg>`, `composer require <pkg>:^<v>`).
 - FR8.3 If no fix: surface workarounds from advisory text and mark `no_fix_available`.
-- FR8.4 Generic playbooks: "how to publish a GitHub Security Advisory", "how to enable PVR", "SECURITY.md template" (Stellar-specific template with links to SDF bounty scope where applicable).
+- FR8.4 Generic playbooks: "how to publish a GitHub Security Advisory", "how to enable PVR", "SECURITY.md template" (Stellar-specific template with links to SDF bounty scope where applicable). Copy-ready SECURITY.md + RFC 9116 security.txt templates ship in the dashboard (`src/lib/templates.ts`) next to the failing hygiene signal.
 
 ### FR9 Notifications (opt-in only)
 - FR9.1 Channels: email, webhook, GitHub issue (only in repos that opted in via App or config file `.github/aegis.yml`).
@@ -244,7 +269,7 @@ Boolean/numeric signals, *profiles not a score*:
 ### FR10 Public API (read-only)
 | Endpoint | Description |
 | -------- | ----------- |
-| `GET /v1/projects` | Projects with hygiene summary + open findings counts. Query: `search`, `activity_status`, `has_policy`, `kev`, `fixable`, `sort` (`priority`\|`criticality`\|`name`\|`findings`), `limit`, `offset` |
+| `GET /v1/projects` | Projects with hygiene summary + open findings counts. Query: `search`, `activity_status`, `has_policy`, `kev`, `fixable`, `actionable`, `disclosure_gap`, `missing_pvr`, `missing_sbom`, `sort` (`actionable`\|`priority`\|`criticality`\|`name`\|`findings`), `limit`, `offset` |
 | `GET /v1/projects/{canonical_id}` | Full profile, disclosure channels, findings |
 | `GET /v1/findings` | Ecosystem-wide findings ordered by priority. Query: `limit`, `offset`, `dedupe=project` (top finding per project) |
 | `GET /v1/repos/{canonical_id}/findings` | Findings with priority breakdown, filters: severity, confidence, status |
@@ -267,8 +292,35 @@ The response shapes the frontend expects are defined in `frontend/src/api/types.
 
 ### FR12 PG Atlas integration
 - Publish per-repo/project signals in a format PG Atlas can ingest as metric columns
-  (`has_security_policy`, `pvr_enabled`, `open_vuln_count_{severity}`, `max_finding_priority`).
+  (`has_security_policy`, `pvr_enabled`, `open_vuln_count_{severity}`, `actionable_findings`,
+  `max_finding_priority`). Severity counts and `max_finding_priority` are diagnostic
+  inventory only — `actionable_findings` is the flag surface (FR5b).
 - Propose upstream via PG Atlas extension pattern ("Adding New Metrics") once validated.
+
+### FR13 DefectDojo triage integration (optional)
+
+Self-hosted **DefectDojo OSS** serves as the WG's internal triage + SLA backend; the public
+dashboard never writes to it and only consumes triage decisions.
+
+- FR13.1 Push: `scripts/dojo.ts push` maps the snapshot onto Dojo's hierarchy —
+  Product Type `Stellar Public Goods` → Product per project (tagged
+  `aegis:<canonical_id>`) → ongoing Engagement `aegis-scan` → Test per repo — and
+  reimport-scans each repo's findings as **Generic Findings Import** with
+  `unique_id_from_tool` = Aegis `Finding.id` and `close_old_findings` (per-repo scope).
+- FR13.2 Dedup depends on instance config `DD_DEDUPLICATION_ALGORITHM_PER_PARSER =
+  {"Generic Findings Import": "unique_id_from_tool_or_hash_code"}` — deployment-owned
+  (see `deploy/dojo/README.md`); without it reimports duplicate findings.
+- FR13.3 SLA: per-Asset severity SLAs configured in Dojo (Critical 14d / High 30d /
+  Medium 90d / Low 180d suggested — aligned with FR5b grace windows); countdowns
+  surface on findings as `sla_days_remaining`.
+- FR13.4 Pull: `scripts/dojo.ts pull` writes `dojo_status` + `sla_days_remaining`
+  onto findings, then recounts FR5b — `false_positive`, `risk_accepted`,
+  `out_of_scope`, `mitigated`, `duplicate` clear `actionable`.
+- FR13.5 Scope: findings only — SBOM inventory is Dojo Pro territory and stays with
+  PG Atlas; CVE lifecycle (active → mitigated → reopened) is handled by reimport
+  semantics, not duplicated in Aegis.
+- FR13.6 The whole integration is env-gated (`DOJO_URL` + `DOJO_API_KEY`); the
+  refresh workflow skips it when unset. Aegis remains fully functional without it.
 
 ---
 

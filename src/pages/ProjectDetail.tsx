@@ -5,8 +5,9 @@ import { ApiError } from '../api/client'
 import { DisclosureChannels } from '../components/DisclosureCard'
 import { FindingsTable } from '../components/FindingsTable'
 import { SastFindings } from '../components/SastFindings'
-import { Card, CardHeader, CheckItem, EmptyState, ErrorState, PageHeader, Pill, ScoreBar, SeverityBadge, SeverityStack, Skeleton, StatusPill } from '../components/ui'
+import { Card, CardHeader, CheckItem, CopyButton, EmptyState, ErrorState, PageHeader, Pill, ScoreBar, SeverityBadge, SeverityStack, Skeleton, StatusPill } from '../components/ui'
 import { relativeTime, shortDate, totalFindings } from '../lib/format'
+import { PVR_DOCS_URL, securityMdTemplate, securityTxtTemplate } from '../lib/templates'
 
 export default function ProjectDetail() {
   const { id = '' } = useParams()
@@ -75,6 +76,16 @@ export default function ProjectDetail() {
             <span className="text-2xl font-semibold text-white tabular-nums">{totalFindings(p.open_findings)}</span>
             <SeverityStack counts={p.open_findings} />
           </div>
+          {p.actionable_findings > 0 && (
+            <div className="mt-1.5 text-xs text-rose-300" title="Exploited (KEV), a confirmed call path, high EPSS, or a fix unpatched past the grace window">
+              {p.actionable_findings} need{p.actionable_findings === 1 ? 's' : ''} action{p.oldest_actionable_age_days != null ? ` · oldest ${p.oldest_actionable_age_days}d` : ''}
+            </div>
+          )}
+          {p.findings.some((f) => f.dojo_status) && (
+            <div className="mt-1 text-xs text-slate-500" title="Findings synced to the WG's DefectDojo triage instance">
+              {p.findings.filter((f) => f.dojo_status && f.dojo_status !== 'new').length} triaged in DefectDojo
+            </div>
+          )}
         </Card>
         <Card className="p-4">
           <div className="text-xs text-slate-500">PG Atlas dependents</div>
@@ -226,6 +237,33 @@ export default function ProjectDetail() {
                 title={h.tls ? [h.tls.error, h.tls.cert_expires_at && `expires ${shortDate(h.tls.cert_expires_at)}`].filter(Boolean).join(' · ') || undefined : undefined}
               />
               <CheckItem ok={h.dependency_update_tool} label="Dependabot / Renovate configured" />
+              {(h.has_security_policy === false || h.pvr_enabled === false || h.has_security_txt === false) && (
+                <div className="space-y-2 rounded-xl border border-indigo-400/15 bg-indigo-500/[0.05] p-3">
+                  <div className="text-xs font-medium text-indigo-200">Get covered — the standard fixes</div>
+                  {h.pvr_enabled === false && (
+                    <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
+                      <span>
+                        Enable GitHub private vulnerability reporting{p.repos.filter((r) => r.pvr_enabled === false).length > 0 ? ` — ${p.repos.filter((r) => r.pvr_enabled === false).length} repo${p.repos.filter((r) => r.pvr_enabled === false).length === 1 ? '' : 's'} lack it` : ''}
+                      </span>
+                      <a href={PVR_DOCS_URL} target="_blank" rel="noreferrer" className="shrink-0 text-indigo-300 hover:text-indigo-200" aria-label="GitHub PVR docs">
+                        <ExternalLink className="size-3.5" />
+                      </a>
+                    </div>
+                  )}
+                  {h.has_security_policy === false && (
+                    <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
+                      <span>Add SECURITY.md to the default branch</span>
+                      <CopyButton value={securityMdTemplate(p.display_name, p.website)} label="Copy template" />
+                    </div>
+                  )}
+                  {h.has_security_txt === false && (
+                    <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
+                      <span>Publish /.well-known/security.txt on the website</span>
+                      <CopyButton value={securityTxtTemplate(p.website)} label="Copy template" />
+                    </div>
+                  )}
+                </div>
+              )}
               <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.05] pt-4 text-xs">
                 <div>
                   <dt className="text-slate-500">OpenSSF Scorecard</dt>

@@ -13,7 +13,8 @@ dev notes: [`AGENTS.md`](AGENTS.md)
 
 - **Exposure** — matches dependency edges (verified SBOMs + inferred) against OSV advisories,
   ranked by a published priority score (severity · criticality · exploitability · exposure ·
-  fix availability − confidence penalty).
+  fix availability − confidence penalty). Projects are flagged by a **needs-action gate**
+  (exploited, reachable, or overdue-fixable findings) — never by raw CVE counts.
 - **Verification layers** on top of raw edges:
   - `govulncheck` call analysis for Go repos — `reachability: called / not-called / unflagged`
   - Semgrep SAST on WG-listed repos — `p/security-audit` rules matched at HEAD, kept in a
@@ -27,8 +28,11 @@ dev notes: [`AGENTS.md`](AGENTS.md)
   [Stellar Security Portal](https://stellarsecurityportal.com) matched to tracked projects via a
   curated map plus each protocol's own URL (never name matching). Shown per project, filterable
   with `?audited=1`, with WG-wide coverage on the overview.
-- **Disclosure routing** — ranked private channels per project: GitHub PVR, SECURITY.md
-  contacts, security.txt, policy fallback.
+- **Disclosure routing + adoption** — Aegis does not provide its own channel; it indexes
+  the standard ones (GitHub PVR, SECURITY.md contacts, security.txt, bounty) and ranks
+  them. It also measures the adoption gap: `disclosure_coverage` on the overview, a
+  `?policy=nochannel` gap filter, and per-project "get covered" actions (PVR docs,
+  copyable SECURITY.md / RFC 9116 security.txt templates).
 
 ## Quick start
 
@@ -83,6 +87,7 @@ flowchart LR
 | Semgrep | SAST findings on WG-listed repos (`p/security-audit`) | `python3` + `pip` | 30d per commit SHA + version + ruleset | live (`SEMGREP=0` disables, `SEMGREP_MAX_REPOS` caps) |
 | Scout | Soroban contract lint on repos with `soroban-sdk` manifests (CoinFabrik `cargo-scout-audit`) | `docker` (x86_64) or `cargo` + `cargo-scout-audit` | 30d per commit SHA + version | live (`SCOUT=0` disables, `SCOUT_MAX_REPOS` caps, `SCOUT_RUNNER` picks docker/local) |
 | Lockfile probes | findings missed by the edge graph | none | n/a — runs on demand | live |
+| DefectDojo OSS | triage state + SLA countdowns pushed back onto findings | `DOJO_URL` + `DOJO_API_KEY` | n/a — WG instance | optional (see `deploy/dojo/README.md`) |
 | Backend `/v1/*` | replaces the static snapshot | — | — | planned (spec §8) |
 
 ## Scripts

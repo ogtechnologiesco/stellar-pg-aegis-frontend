@@ -90,6 +90,15 @@ Verification before finishing a change: `npm run lint && npm run build`.
 - `scripts/annotate-scout.ts` — `npm run data:scout`: runs the same Scout pass against
   the existing `public/data/snapshot.json` without a full refresh. Preserves non-scout
   findings when rewriting `sast_findings`.
+- `scripts/dojo.ts` — `npm run data:dojo-push` / `data:dojo-pull`: syncs findings with the
+  WG's DefectDojo OSS triage+SLA backend (see `deploy/dojo/README.md`). Push creates
+  Product-per-project / Engagement `aegis-scan` / Test-per-repo and reimport-scans Generic
+  findings (dedup on `unique_id_from_tool` = finding id — requires
+  `DD_DEDUPLICATION_ALGORITHM_PER_PARSER` on the instance). Pull writes `dojo_status` +
+  `sla_days_remaining` onto findings then calls `recountActionable` — cleared triage states
+  (`false_positive`, `risk_accepted`, `out_of_scope`, `mitigated`, `duplicate`) drop the
+  actionable flag. Needs `DOJO_URL` + `DOJO_API_KEY`; `DOJO_DRY_RUN=1`, `DOJO_LIMIT`,
+  `DOJO_PROJECTS` for partial runs. Skipped entirely when unset.
 - `scripts/diff-snapshot.ts` — `npm run data:diff <old.json> <new.json>`: markdown report of
   new/resolved findings, KEV adds, reachability flips and SAST deltas; appends `new_findings=`,
   `sast_new=` etc. to `$GITHUB_OUTPUT`. Used by the snapshot-refresh workflow.
@@ -136,6 +145,15 @@ Verification before finishing a change: `npm run lint && npm run build`.
   the same checks live in the browser; override via `VITE_DOH_API`).
 - Priority weights (spec FR5) live in `src/lib/priority.ts`; severity falls back to the
   advisory label when no CVSS v3 score is computable (`unknown` severity is possible).
+- The **needs-action gate** (`isActionable` in `src/lib/priority.ts`, spec FR5b) replaces raw
+  CVE counts as the project flag: a finding is actionable only with exploit/applicability
+  evidence (KEV, `reachability: 'called'`, EPSS ≥ 0.2 on a fixable issue), a fix unpatched
+  >90d, or a critical >14d. Cleared reachability (`not-called`/`unflagged`), `inferred`
+  confidence and non-vulnerability kinds (unmaintained/notice/…) never flag. Findings carry
+  `actionable`; projects carry `actionable_findings` + `oldest_actionable_age_days`;
+  `summary.actionable_findings` is the ecosystem total. `scripts/actionable.ts`
+  (`recountActionable`) recomputes all of it inside the annotate/review recounts — call it
+  whenever a pass mutates findings so the flag never goes stale.
 
 ### Conventions
 

@@ -2,10 +2,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Github, Search, ShieldCheck, ShieldOff, X } from 'lucide-react'
 import type { ActivityStatus, ProjectQuery } from '../api/types'
 import { useProjects } from '../api'
-import { Card, EmptyState, ErrorState, PageHeader, Pill, PriorityMeter, Segmented, SeverityStack, Skeleton, StatusPill } from '../components/ui'
+import { Card, EmptyState, ErrorState, PageHeader, Pill, Segmented, SeverityStack, Skeleton, StatusPill } from '../components/ui'
 import { STATUS_LABEL } from '../lib/format'
 
-type PolicyFilter = 'all' | 'present' | 'missing'
+type PolicyFilter = 'all' | 'present' | 'missing' | 'nochannel'
 type ScopeFilter = 'all' | 'pg'
 type Sort = NonNullable<ProjectQuery['sort']>
 
@@ -16,11 +16,15 @@ export default function Projects() {
   const status = (params.get('status') ?? '') as ActivityStatus | ''
   const policy = (params.get('policy') ?? 'all') as PolicyFilter
   const scope = (params.get('scope') ?? 'all') as ScopeFilter
-  const sort = (params.get('sort') ?? 'priority') as Sort
+  const sort = (params.get('sort') ?? 'actionable') as Sort
   const kev = params.has('kev')
   const fixable = params.has('fixable')
+  const actionable = params.has('actionable')
   const reachable = params.has('reach')
   const audited = params.has('audited')
+  const noaudit = params.has('noaudit')
+  const nopvr = params.has('nopvr')
+  const nosbom = params.has('nosbom')
 
   const set = (k: string, v: string, fallback = '') =>
     setParams(
@@ -35,11 +39,15 @@ export default function Projects() {
   const { data, error, isLoading, isPlaceholderData } = useProjects({
     search: search || undefined,
     activity_status: status || undefined,
-    has_policy: policy === 'all' ? undefined : policy === 'present',
+    has_policy: policy === 'present' ? true : policy === 'missing' ? false : undefined,
+    disclosure_gap: policy === 'nochannel' || undefined,
     kev: kev || undefined,
     fixable: fixable || undefined,
+    actionable: actionable || undefined,
     reachable: reachable || undefined,
-    audited: audited || undefined,
+    audited: audited ? true : noaudit ? false : undefined,
+    missing_pvr: nopvr || undefined,
+    missing_sbom: nosbom || undefined,
     wg_listed: scope === 'pg' ? true : undefined,
     sort,
     limit: 200,
@@ -77,9 +85,11 @@ export default function Projects() {
             { value: 'all', label: 'All' },
             { value: 'present', label: 'Has policy' },
             { value: 'missing', label: 'No policy' },
+            { value: 'nochannel', label: 'No channel' },
           ]}
         />
-        <select value={sort} onChange={(e) => set('sort', e.target.value, 'priority')} className="input w-full lg:w-44" aria-label="Sort by">
+        <select value={sort} onChange={(e) => set('sort', e.target.value, 'actionable')} className="input w-full lg:w-44" aria-label="Sort by">
+          <option value="actionable">Sort: needs action</option>
           <option value="priority">Sort: priority</option>
           <option value="findings">Sort: findings</option>
           <option value="criticality">Sort: criticality</option>
@@ -87,9 +97,14 @@ export default function Projects() {
         </select>
       </Card>
 
-      {(kev || fixable || reachable || audited) && (
+      {(kev || fixable || reachable || audited || actionable || noaudit || nopvr || nosbom) && (
         <div className="mb-4 -mt-1 flex items-center gap-2 text-xs text-slate-500">
           Showing
+          {actionable && (
+            <button onClick={() => set('actionable', '')} className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/10 px-2 py-0.5 font-medium text-rose-300 ring-1 ring-rose-500/25 ring-inset transition hover:bg-rose-500/20">
+              projects needing action <X className="size-3" />
+            </button>
+          )}
           {reachable && (
             <button onClick={() => set('reach', '')} className="inline-flex items-center gap-1.5 rounded-md bg-fuchsia-500/10 px-2 py-0.5 font-medium text-fuchsia-300 ring-1 ring-fuchsia-500/25 ring-inset transition hover:bg-fuchsia-500/20">
               projects calling vulnerable code <X className="size-3" />
@@ -108,6 +123,21 @@ export default function Projects() {
           {audited && (
             <button onClick={() => set('audited', '')} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-0.5 font-medium text-amber-300 ring-1 ring-amber-500/25 ring-inset transition hover:bg-amber-500/20">
               projects with audit reports <X className="size-3" />
+            </button>
+          )}
+          {noaudit && (
+            <button onClick={() => set('noaudit', '')} className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-0.5 font-medium text-amber-300 ring-1 ring-amber-500/25 ring-inset transition hover:bg-amber-500/20">
+              projects without audit reports <X className="size-3" />
+            </button>
+          )}
+          {nopvr && (
+            <button onClick={() => set('nopvr', '')} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/10 px-2 py-0.5 font-medium text-cyan-300 ring-1 ring-cyan-500/25 ring-inset transition hover:bg-cyan-500/20">
+              projects without PVR <X className="size-3" />
+            </button>
+          )}
+          {nosbom && (
+            <button onClick={() => set('nosbom', '')} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-300 ring-1 ring-emerald-500/25 ring-inset transition hover:bg-emerald-500/20">
+              projects without verified SBOM <X className="size-3" />
             </button>
           )}
         </div>
@@ -173,7 +203,11 @@ export default function Projects() {
                         <span title="PG Atlas criticality — transitive in-ecosystem dependents">{p.criticality_score ?? '—'} dep</span>
                         <span title="Pony factor — maintainers authoring most commits">{p.pony_factor ?? '—'} pony</span>
                         <span title="OpenSSF Scorecard overall">{p.hygiene.scorecard_overall?.toFixed(1) ?? '—'}</span>
-                        <PriorityMeter value={p.max_priority} />
+                        {p.actionable_findings > 0 && (
+                          <span className="text-rose-300" title="Needs action — exploited, reachable, or overdue-fixable findings">
+                            {p.actionable_findings} action{p.oldest_actionable_age_days != null ? ` · ${p.oldest_actionable_age_days}d` : ''}
+                          </span>
+                        )}
                       </span>
                     </div>
                   </Link>
@@ -191,7 +225,7 @@ export default function Projects() {
                   <th className="th">Dependents</th>
                   <th className="th">Pony factor</th>
                   <th className="th">Scorecard</th>
-                  <th className="th">Max priority</th>
+                  <th className="th">Needs action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
@@ -255,7 +289,14 @@ export default function Projects() {
                     </td>
                     <td className="td font-mono text-xs text-slate-300">{p.hygiene.scorecard_overall?.toFixed(1) ?? '—'}</td>
                     <td className="td">
-                      <PriorityMeter value={p.max_priority} />
+                      {p.actionable_findings > 0 ? (
+                        <span className="font-mono text-xs tabular-nums" title="Findings needing action — exploited (KEV), a confirmed call path, high EPSS, or a fix unpatched past the grace window">
+                          <span className="text-rose-300">{p.actionable_findings}</span>
+                          {p.oldest_actionable_age_days != null && <span className="text-slate-500"> · {p.oldest_actionable_age_days}d</span>}
+                        </span>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
