@@ -78,6 +78,22 @@ jobs:
           SCOUT_MAX_REPOS: '40'
         run: npm run data:refresh && npm run data:review
 
+      - name: Check DefectDojo config
+        id: dojo
+        env:
+          DOJO_URL: ${{ secrets.DOJO_URL }}
+        run: echo "configured=$([ -n "${DOJO_URL:-}" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Sync findings with DefectDojo
+        # Optional: pushes the snapshot to the WG's triage instance and pulls
+        # triage status back onto findings before the diff + commit. Skipped
+        # when DOJO_URL is not configured — see deploy/dojo/README.md.
+        if: steps.dojo.outputs.configured == 'true'
+        env:
+          DOJO_URL: ${{ secrets.DOJO_URL }}
+          DOJO_API_KEY: ${{ secrets.DOJO_API_KEY }}
+        run: npm run data:dojo-push && npm run data:dojo-pull
+
       - name: Diff findings
         id: diff
         run: node scripts/diff-snapshot.ts /tmp/snapshot-old.json public/data/snapshot.json >> "$GITHUB_STEP_SUMMARY"

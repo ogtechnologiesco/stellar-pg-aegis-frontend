@@ -13,6 +13,8 @@
     "data:sast": "node scripts/annotate-sast.ts",
     "data:scout": "node scripts/annotate-scout.ts",
     "data:review": "node scripts/apply-review.ts",
+    "data:dojo-push": "node scripts/dojo.ts push",
+    "data:dojo-pull": "node scripts/dojo.ts pull",
     "data:diff": "node scripts/diff-snapshot.ts"
   },
   "dependencies": {
