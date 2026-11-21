@@ -25,6 +25,7 @@ export default function Projects() {
   const noaudit = params.has('noaudit')
   const nopvr = params.has('nopvr')
   const nosbom = params.has('nosbom')
+  const notxt = params.has('notxt')
 
   const set = (k: string, v: string, fallback = '') =>
     setParams(
@@ -48,6 +49,7 @@ export default function Projects() {
     audited: audited ? true : noaudit ? false : undefined,
     missing_pvr: nopvr || undefined,
     missing_sbom: nosbom || undefined,
+    missing_security_txt: notxt || undefined,
     wg_listed: scope === 'pg' ? true : undefined,
     sort,
     limit: 200,
@@ -97,7 +99,7 @@ export default function Projects() {
         </select>
       </Card>
 
-      {(kev || fixable || reachable || audited || actionable || noaudit || nopvr || nosbom) && (
+      {(kev || fixable || reachable || audited || actionable || noaudit || nopvr || nosbom || notxt) && (
         <div className="mb-4 -mt-1 flex items-center gap-2 text-xs text-slate-500">
           Showing
           {actionable && (
@@ -138,6 +140,11 @@ export default function Projects() {
           {nosbom && (
             <button onClick={() => set('nosbom', '')} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-300 ring-1 ring-emerald-500/25 ring-inset transition hover:bg-emerald-500/20">
               projects without verified SBOM <X className="size-3" />
+            </button>
+          )}
+          {notxt && (
+            <button onClick={() => set('notxt', '')} className="inline-flex items-center gap-1.5 rounded-md bg-violet-500/10 px-2 py-0.5 font-medium text-violet-300 ring-1 ring-violet-500/25 ring-inset transition hover:bg-violet-500/20">
+              projects without security.txt <X className="size-3" />
             </button>
           )}
         </div>

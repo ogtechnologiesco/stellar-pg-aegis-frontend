@@ -138,6 +138,9 @@ export default function Overview() {
                 <Link to="/projects?policy=nochannel" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects without a usable private disclosure channel">
                   <CoverageRing value={s.disclosure_coverage} label="have a usable private disclosure channel" color="#fb7185" />
                 </Link>
+                <Link to="/projects?notxt=1" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects whose website lacks /.well-known/security.txt">
+                  <CoverageRing value={s.security_txt_coverage} label="publish security.txt on their own domain" color="#a78bfa" />
+                </Link>
                 <Link to="/projects?nosbom=1" className="group -mx-2 rounded-xl px-2 py-1 transition hover:bg-white/[0.03]" title="View projects without a verified PG Atlas SBOM">
                   <CoverageRing value={s.sbom_coverage} label="Submit verified SBOMs to PG Atlas" color="#34d399" />
                 </Link>

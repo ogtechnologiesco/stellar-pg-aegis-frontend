@@ -22,7 +22,7 @@ const matches = (haystack: string, needle?: string) => !needle || haystack.toLow
 export const snapshotClient: AegisApi = {
   mode: 'snapshot',
   getSummary: async () => (await loadSnapshot()).summary,
-  listProjects: async ({ search, activity_status, has_policy, kev, fixable, actionable, reachable, kind, wg_listed, audited, disclosure_gap, missing_pvr, missing_sbom, sort = 'actionable', limit, offset } = {}) => {
+  listProjects: async ({ search, activity_status, has_policy, kev, fixable, actionable, reachable, kind, wg_listed, audited, disclosure_gap, missing_pvr, missing_sbom, missing_security_txt, sort = 'actionable', limit, offset } = {}) => {
     const { projects } = await loadSnapshot()
     const items = projects
       .filter((p) => !kev || p.findings.some((f) => f.kev))
@@ -35,6 +35,7 @@ export const snapshotClient: AegisApi = {
       .filter((p) => !disclosure_gap || !p.has_private_channel)
       .filter((p) => !missing_pvr || p.repos.every((r) => r.pvr_enabled !== true))
       .filter((p) => !missing_sbom || !p.repos.some((r) => r.sbom_verified))
+      .filter((p) => !missing_security_txt || p.hygiene.has_security_txt === false)
       .map(toSummary)
       .filter((p) => matches(`${p.display_name} ${p.canonical_id} ${p.category ?? ''}`, search))
       .filter((p) => !activity_status || p.activity_status === activity_status)

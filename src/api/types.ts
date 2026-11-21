@@ -301,6 +301,8 @@ export interface EcosystemSummary {
   pvr_coverage: number | null
   /** Share of projects with ≥1 usable private disclosure channel. null = disclosure data not collected. */
   disclosure_coverage: number | null
+  /** Share of projects with an RFC 9116 security.txt — only projects with a non-GitHub website are checkable; null = never checked. */
+  security_txt_coverage: number | null
   open_findings: SeverityCounts
   affected_projects: number
   kev_findings: number
@@ -358,6 +360,8 @@ export interface ProjectQuery {
   missing_pvr?: boolean
   /** No repo with a verified SBOM submitted to PG Atlas. */
   missing_sbom?: boolean
+  /** Has a non-GitHub website but no security.txt found on it. */
+  missing_security_txt?: boolean
   wg_listed?: boolean
   sort?: 'actionable' | 'priority' | 'criticality' | 'name' | 'findings'
   limit?: number

@@ -1243,6 +1243,7 @@ async function main() {
     policy_coverage: share((p) => p.hygiene.has_security_policy),
     pvr_coverage: share((p) => p.hygiene.pvr_enabled),
     disclosure_coverage: GH_TOKEN ? share((p) => p.has_private_channel) : null,
+    security_txt_coverage: share((p) => p.hygiene.has_security_txt),
     open_findings: open,
     affected_projects: new Set(findings.map((f) => f.project_id)).size,
     kev_findings: findings.filter((f) => f.kev).length,

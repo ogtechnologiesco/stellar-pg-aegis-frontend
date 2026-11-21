@@ -269,7 +269,7 @@ Boolean/numeric signals, *profiles not a score*:
 ### FR10 Public API (read-only)
 | Endpoint | Description |
 | -------- | ----------- |
-| `GET /v1/projects` | Projects with hygiene summary + open findings counts. Query: `search`, `activity_status`, `has_policy`, `kev`, `fixable`, `actionable`, `disclosure_gap`, `missing_pvr`, `missing_sbom`, `sort` (`actionable`\|`priority`\|`criticality`\|`name`\|`findings`), `limit`, `offset` |
+| `GET /v1/projects` | Projects with hygiene summary + open findings counts. Query: `search`, `activity_status`, `has_policy`, `kev`, `fixable`, `actionable`, `disclosure_gap`, `missing_pvr`, `missing_sbom`, `missing_security_txt`, `sort` (`actionable`\|`priority`\|`criticality`\|`name`\|`findings`), `limit`, `offset` |
 | `GET /v1/projects/{canonical_id}` | Full profile, disclosure channels, findings |
 | `GET /v1/findings` | Ecosystem-wide findings ordered by priority. Query: `limit`, `offset`, `dedupe=project` (top finding per project) |
 | `GET /v1/repos/{canonical_id}/findings` | Findings with priority breakdown, filters: severity, confidence, status |
